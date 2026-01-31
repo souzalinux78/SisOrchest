@@ -218,14 +218,17 @@ const loadReportData = async (filters: { commonId?: number | null; musicianId?: 
   const commonId = resolvedCommonId ?? filters.commonId ?? null
 
   try {
-    const [commons, musicians, services, attendance] = await Promise.all([
+  const [commons, musicians, services, attendance] = await Promise.all([
       api.getCommons(),
       api.getMusicians({ common_id: commonId ?? undefined }),
       api.getServices({ common_id: commonId ?? undefined }),
       api.getAttendance({ common_id: commonId ?? undefined }),
     ])
 
-    const reportRows = buildReport(commons, musicians, services, attendance, {
+  const allowedCommons =
+    currentUser?.role === 'admin' ? commons : commons.filter((common) => common.id === commonId)
+
+  const reportRows = buildReport(allowedCommons, musicians, services, attendance, {
       commonId,
       musicianId: filters.musicianId ?? null,
       weekday: filters.weekday || '',
@@ -238,7 +241,12 @@ const loadReportData = async (filters: { commonId?: number | null; musicianId?: 
       ? services.filter((service) => service.weekday === filters.weekday)
       : services
     applySummary(reportRows, filteredServices)
-    populateReportFilters(commons, musicians)
+  populateReportFilters(allowedCommons, musicians)
+  const reportCommonSelect = document.getElementById('report-common') as HTMLSelectElement | null
+  if (reportCommonSelect && currentUser?.role !== 'admin' && commonId) {
+    reportCommonSelect.value = String(commonId)
+    reportCommonSelect.disabled = true
+  }
   } finally {
     clearTextLoading(['reports-summary', 'reports-attendance', 'reports-services'])
     clearTableLoading('reports-table-body')
