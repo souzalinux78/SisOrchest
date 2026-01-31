@@ -1,0 +1,66 @@
+import express from 'express'
+import cors from 'cors'
+import { config } from './config.js'
+import { pingDb } from './db.js'
+import {
+  authRouter,
+  commonsRouter,
+  musiciansRouter,
+  servicesRouter,
+  attendanceRouter,
+  usersRouter,
+} from './routes/index.js'
+import { optionalAuth } from './routes/utils.js'
+
+export const createApp = () => {
+  const app = express()
+
+  app.disable('x-powered-by')
+  app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff')
+    res.setHeader('X-Frame-Options', 'DENY')
+    res.setHeader('Referrer-Policy', 'no-referrer')
+    res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()')
+    next()
+  })
+  app.use(cors({ origin: config.corsOrigin }))
+  app.use(express.json({ limit: '1mb' }))
+  app.use(optionalAuth)
+
+  const rateLimitStore = new Map()
+  const rateLimit = (key, max, windowMs) => (req, res, next) => {
+    const now = Date.now()
+    const clientKey = `${req.ip}:${key}`
+    const entry = rateLimitStore.get(clientKey) ?? { count: 0, start: now }
+    if (now - entry.start > windowMs) {
+      entry.count = 0
+      entry.start = now
+    }
+    entry.count += 1
+    rateLimitStore.set(clientKey, entry)
+    if (entry.count > max) {
+      return res.status(429).json({ message: 'Muitas tentativas. Tente novamente mais tarde.' })
+    }
+    return next()
+  }
+
+  app.get('/health', async (_req, res) => {
+    try {
+      await pingDb()
+      res.json({ status: 'ok' })
+    } catch (error) {
+      res.status(500).json({ status: 'error', message: 'Falha ao conectar no banco.' })
+    }
+  })
+
+  app.use('/auth', authRouter)
+  app.use('/auth/login', rateLimit('auth-login', 20, 15 * 60 * 1000))
+  app.use('/users/register', rateLimit('users-register', 10, 15 * 60 * 1000))
+  app.use('/commons', commonsRouter)
+  app.use('/musicians', musiciansRouter)
+  app.use('/services', servicesRouter)
+  app.use('/attendance', attendanceRouter)
+  app.use('/users', usersRouter)
+
+  return app
+}

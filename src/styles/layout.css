@@ -1,0 +1,148 @@
+body {
+  background: var(--black-main);
+}
+
+.topbar {
+  background: linear-gradient(120deg, var(--gold-main), var(--gold-strong));
+  color: var(--white);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.2rem 3rem;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+  padding-top: calc(1.2rem + env(safe-area-inset-top));
+}
+
+.app:not(.is-authenticated) .topbar {
+  display: none;
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.brand__mark {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--white);
+}
+
+.brand__tag {
+  font-size: 0.9rem;
+  color: var(--black-main);
+  font-weight: 600;
+}
+
+.topbar__actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.content-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 3rem;
+}
+
+.app.is-authenticated .content-stack {
+  gap: 0;
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: 80vh;
+  background: var(--black-main);
+}
+
+.menu-backdrop {
+  display: none;
+}
+
+.app:not(.is-authenticated) .shell {
+  display: none;
+}
+
+.sidebar {
+  background: var(--black-main);
+  border-right: 1px solid rgba(212, 175, 55, 0.2);
+  padding: 2.2rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.sidebar__brand .brand__mark {
+  color: var(--gold-main);
+}
+
+.sidebar__brand .brand__tag {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.menu__item {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--white);
+  padding: 0.7rem 1rem;
+  border-radius: 12px;
+  text-align: left;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.menu__item.active {
+  background: var(--gold-main);
+  color: var(--black-main);
+  border-color: var(--gold-strong);
+}
+
+.sidebar__footer {
+  margin-top: auto;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.85rem;
+}
+
+.shell__main {
+  display: flex;
+  flex-direction: column;
+  background: var(--black-soft);
+}
+
+.views {
+  display: flex;
+  flex-direction: column;
+}
+
+.appbar {
+  background: linear-gradient(120deg, var(--gold-main), var(--gold-strong));
+  color: var(--white);
+  padding: 1.5rem 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.appbar__title {
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.appbar__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.menu-toggle {
+  display: none;
+}

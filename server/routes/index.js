@@ -1,0 +1,6 @@
+export { authRouter } from './auth.js'
+export { commonsRouter } from './commons.js'
+export { musiciansRouter } from './musicians.js'
+export { servicesRouter } from './services.js'
+export { attendanceRouter } from './attendance.js'
+export { usersRouter } from './users.js'

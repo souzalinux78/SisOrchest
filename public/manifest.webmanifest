@@ -1,0 +1,32 @@
+{
+  "name": "SisOrchest",
+  "short_name": "SisOrchest",
+  "description": "SisOrchest é um sistema SaaS para gerenciamento de presença e organização de músicos em cultos.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0b0b",
+  "theme_color": "#d4af37",
+  "icons": [
+    {
+      "src": "/sisorchestra-icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    },
+    {
+      "src": "/sisorchestra-icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/sisorchestra-icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    },
+    {
+      "src": "/sisorchestra-icon-512-maskable.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ]
+}

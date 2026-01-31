@@ -1,0 +1,46 @@
+export const attendanceView = `
+  <section class="view" data-view="attendance">
+    <div class="view-header">
+      <div>
+        <h2>Presenças</h2>
+        <p>Controle de presença por culto e músico.</p>
+      </div>
+    </div>
+    <div id="attendance-status-text" class="data-status"></div>
+
+    <div class="form-card">
+      <h3>Registrar presença</h3>
+      <div class="form-grid">
+        <label>
+          <span>Culto</span>
+          <select id="attendance-service"></select>
+        </label>
+        <label>
+          <span>Data do culto</span>
+          <input id="attendance-date" type="date" readonly />
+        </label>
+      </div>
+      <div class="attendance-checklist">
+        <h4>Músicos da comum</h4>
+        <div id="attendance-musicians-list" class="attendance-list"></div>
+      </div>
+      <button id="attendance-save" class="primary">Registrar presença</button>
+    </div>
+
+    <div class="data-card">
+      <h3>Presenças registradas</h3>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Músico</th>
+            <th>Instrumento</th>
+            <th>Status</th>
+            <th>Data</th>
+            <th>Dia</th>
+          </tr>
+        </thead>
+        <tbody id="attendance-table-body"></tbody>
+      </table>
+    </div>
+  </section>
+`

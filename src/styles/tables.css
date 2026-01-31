@@ -1,0 +1,67 @@
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+  table-layout: fixed;
+}
+
+.data-table thead th {
+  text-align: left;
+  padding: 0.5rem;
+  color: var(--black-main);
+  background: var(--gold-main);
+  word-break: break-word;
+  white-space: normal;
+}
+
+.data-table tbody td {
+  padding: 0.5rem;
+  border-bottom: 1px solid rgba(212, 175, 55, 0.2);
+  color: rgba(255, 255, 255, 0.8);
+  word-break: break-word;
+  white-space: normal;
+}
+
+.data-table tbody tr:hover td {
+  background: rgba(212, 175, 55, 0.06);
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.data-card.is-loading {
+  border-color: rgba(212, 175, 55, 0.35);
+}
+
+.skeleton-row td {
+  padding: 0.6rem;
+}
+
+.skeleton-line {
+  display: block;
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.08), rgba(212, 175, 55, 0.2), rgba(255, 255, 255, 0.08));
+  background-size: 200% 100%;
+  animation: shimmer 1.2s ease-in-out infinite;
+}
+
+.skeleton-row td:nth-child(odd) .skeleton-line {
+  width: 70%;
+}
+
+.skeleton-row td:nth-child(even) .skeleton-line {
+  width: 90%;
+}
+
+@keyframes shimmer {
+  0% { background-position: 0% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.empty-row {
+  text-align: center;
+  padding: 1rem 0.5rem;
+  color: rgba(255, 255, 255, 0.6);
+}

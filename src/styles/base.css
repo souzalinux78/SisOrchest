@@ -1,0 +1,172 @@
+:root {
+  --gold-main: #d4af37;
+  --gold-strong: #c9a24d;
+  --gold-soft: rgba(212, 175, 55, 0.25);
+  --black-main: #0b0b0b;
+  --black-soft: #1a1a1a;
+  --white: #ffffff;
+  --text-xs: 0.75rem;
+  --text-sm: 0.85rem;
+  --text-md: 1rem;
+  --text-lg: 1.2rem;
+  --text-xl: 1.6rem;
+  font-family: "Inter", "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: var(--white);
+  background-color: var(--black-main);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: var(--black-main);
+  -webkit-tap-highlight-color: transparent;
+  overflow-x: hidden;
+}
+
+a {
+  color: var(--gold-main);
+  text-decoration: none;
+}
+
+button,
+input {
+  font-family: inherit;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+button {
+  border: none;
+  background: transparent;
+  color: inherit;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--black-main);
+}
+
+.primary {
+  background: var(--gold-main);
+  color: var(--black-main);
+  border: none;
+  padding: 0.65rem 1.2rem;
+  border-radius: 999px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 6px 14px rgba(212, 175, 55, 0.25);
+  transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+}
+
+.primary.full {
+  width: 100%;
+}
+
+.ghost {
+  background: transparent;
+  border: 1px solid var(--black-main);
+  color: var(--black-main);
+  padding: 0.6rem 1.1rem;
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+}
+
+.ghost--dark {
+  border-color: rgba(212, 175, 55, 0.6);
+  color: var(--black-main);
+  background: var(--gold-main);
+}
+
+.icon-button {
+  background: var(--gold-main);
+  color: var(--black-main);
+  border: none;
+  padding: 0.5rem 0.8rem;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+}
+
+.primary:hover,
+.ghost:hover,
+.icon-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.25);
+}
+
+.primary:active,
+.ghost:active,
+.icon-button:active {
+  transform: translateY(0);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+}
+
+button:focus-visible {
+  outline: 2px solid rgba(212, 175, 55, 0.45);
+  outline-offset: 2px;
+}
+
+.badge {
+  background: var(--gold-soft);
+  color: var(--gold-main);
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.eyebrow {
+  display: inline-block;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-size: 0.7rem;
+  color: var(--gold-strong);
+  font-weight: 700;
+}
+
+.login-status,
+.data-status {
+  min-height: 1.25rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.login-status.info {
+  color: var(--gold-strong);
+}
+
+.login-status.success {
+  color: var(--gold-main);
+}
+
+.login-status.error {
+  color: #ff6b6b;
+}
+
+.data-status {
+  margin-bottom: 1rem;
+}
