@@ -8,12 +8,15 @@ const toggleElement = (selector: string, shouldShow: boolean) => {
 
 export const applyPermissions = (user: User) => {
   const isAdmin = user.role === 'admin'
+  const isManager = user.role === 'manager'
 
   toggleElement('.menu__item[data-view="commons"]', isAdmin)
-  toggleElement('.menu__item[data-view="users"]', isAdmin)
+  toggleElement('.menu__item[data-view="users"]', isAdmin || isManager)
 
   toggleElement('.view[data-view="commons"]', isAdmin)
-  toggleElement('.view[data-view="users"]', isAdmin)
+  toggleElement('.view[data-view="users"]', isAdmin || isManager)
+  toggleElement('.view[data-view="users"] .form-card', isAdmin)
+  toggleElement('#users-export', isAdmin)
 
   const musicianCommon = document.getElementById('musician-common') as HTMLSelectElement | null
   const serviceCommon = document.getElementById('service-common') as HTMLSelectElement | null

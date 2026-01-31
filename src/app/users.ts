@@ -43,7 +43,9 @@ const renderUsersTable = (users: Array<{
 export const loadUsersList = async () => {
   setTableLoading('users-table-body', 5)
   try {
-    const users = await api.getUsers()
+    const currentUser = getCurrentUser()
+    const commonId = currentUser?.role === 'admin' ? null : currentUser?.common_id ?? null
+    const users = await api.getUsers({ common_id: commonId ?? undefined })
     setHtml('users-table-body', renderUsersTable(users))
     setText('users-status', 'Usuários carregados.')
   } catch (error) {
@@ -80,6 +82,7 @@ export const setupUsersForm = () => {
         email,
         phone,
         password,
+        common_id: commonId,
         common_name: commonName.toUpperCase(),
       })
       await loadUsersList()

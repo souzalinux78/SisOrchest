@@ -75,8 +75,12 @@ export const layoutHtml = `
               <input id="self-phone" type="text" placeholder="(00) 00000-0000" autocomplete="tel" required maxlength="15" />
             </label>
             <label class="field">
-              <span>Comum (CAIXA ALTA)</span>
-              <input id="self-common-name" class="upper" type="text" placeholder="EX: COMUM CENTRAL" required />
+              <span>Comum cadastrada</span>
+              <select id="self-common-select"></select>
+            </label>
+            <label class="field">
+              <span>Nova comum (CAIXA ALTA)</span>
+              <input id="self-common-name" class="upper" type="text" placeholder="EX: COMUM CENTRAL" />
             </label>
             <label class="field">
               <span>Senha</span>

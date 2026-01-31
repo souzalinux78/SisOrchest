@@ -90,15 +90,19 @@ export const api = {
     email: string
     phone: string
     password: string
-    common_name: string
+    common_name?: string
+    common_id?: number
   }) =>
     request<{ message: string }>('/users/register', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
-  getUsers: (params?: { status?: string }) => {
-    const query = params?.status ? `?status=${params.status}` : ''
-    return request<(User & { common_name?: string | null })[]>(`/users${query}`)
+  getUsers: (params?: { status?: string; common_id?: number | null }) => {
+    const queryParams = new URLSearchParams()
+    if (params?.status) queryParams.set('status', params.status)
+    if (params?.common_id) queryParams.set('common_id', String(params.common_id))
+    const query = queryParams.toString()
+    return request<(User & { common_name?: string | null })[]>(`/users${query ? `?${query}` : ''}`)
   },
   approveUser: (id: number, payload: { approved_by: number; note?: string | null }) =>
     request<{ message: string }>(`/users/${id}/approve`, {

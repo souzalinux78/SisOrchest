@@ -1,6 +1,6 @@
 import { api } from './api'
 import { loadAllData } from './overview'
-import { setButtonLoading, setText } from './dom'
+import { requireConfirmClick, setButtonLoading, setText } from './dom'
 import { setCurrentUser } from './session'
 import { applyPermissions, resetPermissions } from './permissions'
 
@@ -40,6 +40,7 @@ export const setupLogin = () => {
   const registerSubmit = registerForm?.querySelector<HTMLButtonElement>('button[type="submit"]') ?? null
 
   refreshButton?.addEventListener('click', async () => {
+    if (!requireConfirmClick(refreshButton as HTMLButtonElement | null, 'Confirmar')) return
     setButtonLoading(refreshButton as HTMLButtonElement | null, true, 'Atualizando...')
     await loadAllData()
     setButtonLoading(refreshButton as HTMLButtonElement | null, false)
@@ -59,10 +60,14 @@ export const setupLogin = () => {
     setTimeout(() => setButtonLoading(button ?? null, false), 200)
   }
 
-  logoutButton?.addEventListener('click', () => handleLogout(logoutButton as HTMLButtonElement | null))
-  restrictedLogout?.addEventListener('click', () =>
-    handleLogout(restrictedLogout as HTMLButtonElement | null),
-  )
+  logoutButton?.addEventListener('click', () => {
+    if (!requireConfirmClick(logoutButton as HTMLButtonElement | null, 'Confirmar')) return
+    handleLogout(logoutButton as HTMLButtonElement | null)
+  })
+  restrictedLogout?.addEventListener('click', () => {
+    if (!requireConfirmClick(restrictedLogout as HTMLButtonElement | null, 'Confirmar')) return
+    handleLogout(restrictedLogout as HTMLButtonElement | null)
+  })
 
   toggleRegister?.addEventListener('click', () => {
     const appRoot = document.querySelector('.app')
@@ -75,6 +80,17 @@ export const setupLogin = () => {
   const phoneField = document.getElementById('self-phone') as HTMLInputElement | null
   phoneField?.addEventListener('input', () => {
     phoneField.value = formatPhone(phoneField.value)
+  })
+
+  const commonSelect = document.getElementById('self-common-select') as HTMLSelectElement | null
+  const commonInput = document.getElementById('self-common-name') as HTMLInputElement | null
+  commonSelect?.addEventListener('change', () => {
+    if (!commonInput) return
+    const hasSelection = Boolean(commonSelect.value)
+    commonInput.disabled = hasSelection
+    if (hasSelection) {
+      commonInput.value = ''
+    }
   })
 
   closeRegister?.addEventListener('click', () => {
@@ -140,13 +156,19 @@ export const setupLogin = () => {
     const phoneInput = document.getElementById('self-phone') as HTMLInputElement | null
     const phone = phoneInput?.value.trim()
     const password = (document.getElementById('self-password') as HTMLInputElement | null)?.value
-    const commonName = (document.getElementById('self-common-name') as HTMLInputElement | null)?.value.trim()
+    const commonId = Number(commonSelect?.value || 0)
+    const commonName = commonInput?.value.trim() ?? ''
 
-    if (!name || !email || !phone || !password || !commonName) {
-      setRegisterStatus('Preencha nome, email, celular, comum e senha.', 'error')
+    if (!name || !email || !phone || !password) {
+      setRegisterStatus('Preencha nome, email, celular e senha.', 'error')
+      return
+    }
+    if (!commonId && !commonName) {
+      setRegisterStatus('Informe uma comum cadastrada ou uma nova comum.', 'error')
       return
     }
 
+    if (!requireConfirmClick(registerSubmit as HTMLButtonElement | null, 'Confirmar')) return
     setRegisterStatus('Enviando solicitação...', 'info')
     setButtonLoading(registerSubmit, true, 'Enviando...')
     try {
@@ -155,19 +177,23 @@ export const setupLogin = () => {
         email,
         phone,
         password,
-        common_name: commonName.toUpperCase(),
+        common_id: commonId || undefined,
+        common_name: commonName ? commonName.toUpperCase() : undefined,
       })
       setRegisterStatus('Cadastro enviado. Aguarde aprovação do administrador.', 'success')
       const nameInput = document.getElementById('self-name') as HTMLInputElement | null
       const emailInput = document.getElementById('self-email') as HTMLInputElement | null
       const phoneInput = document.getElementById('self-phone') as HTMLInputElement | null
       const passwordInput = document.getElementById('self-password') as HTMLInputElement | null
-      const commonInput = document.getElementById('self-common-name') as HTMLInputElement | null
       if (nameInput) nameInput.value = ''
       if (emailInput) emailInput.value = ''
       if (phoneInput) phoneInput.value = ''
       if (passwordInput) passwordInput.value = ''
-      if (commonInput) commonInput.value = ''
+      if (commonSelect) commonSelect.value = ''
+      if (commonInput) {
+        commonInput.value = ''
+        commonInput.disabled = false
+      }
     } catch (error) {
       setRegisterStatus(error instanceof Error ? error.message : 'Erro ao enviar cadastro.', 'error')
     } finally {
