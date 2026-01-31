@@ -1,6 +1,6 @@
 import { api } from './api'
 import type { Attendance, Common, Musician, Service } from './api'
-import { clearTableLoading, clearTextLoading, formatServiceSchedule, setButtonLoading, setHtml, setTableLoading, setText, setTextLoading } from './dom'
+import { clearTableLoading, clearTextLoading, formatServiceSchedule, requireConfirmClick, setButtonLoading, setHtml, setTableLoading, setText, setTextLoading } from './dom'
 import { getCurrentUser } from './session'
 import Chart from 'chart.js/auto'
 import jsPDF from 'jspdf'

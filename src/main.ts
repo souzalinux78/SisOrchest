@@ -8,6 +8,11 @@ import { setupLogin } from './app/auth'
 import { setupNavigation } from './app/navigation'
 import { loadAllData, setupFeatureHandlers } from './app/overview'
 
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
+}
+
 const appRoot = document.querySelector<HTMLDivElement>('#app')
 
 if (appRoot) {

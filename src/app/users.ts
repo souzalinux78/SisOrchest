@@ -1,5 +1,5 @@
 import { api } from './api'
-import { clearTableLoading, setButtonLoading, setHtml, setTableLoading, setText } from './dom'
+import { clearTableLoading, requireConfirmClick, setButtonLoading, setHtml, setTableLoading, setText } from './dom'
 import { getCurrentUser } from './session'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -63,9 +63,11 @@ export const setupUsersForm = () => {
     const email = (document.getElementById('user-email') as HTMLInputElement | null)?.value.trim()
     const phone = (document.getElementById('user-phone') as HTMLInputElement | null)?.value.trim()
     const password = (document.getElementById('user-password') as HTMLInputElement | null)?.value
-    const commonId = Number((document.getElementById('user-common') as HTMLSelectElement | null)?.value)
+    const commonSelect = document.getElementById('user-common') as HTMLSelectElement | null
+    const commonId = Number(commonSelect?.value)
+    const commonName = commonSelect?.selectedOptions[0]?.textContent?.trim() ?? ''
 
-    if (!name || !email || !phone || !password || !commonId) {
+    if (!name || !email || !phone || !password || !commonId || !commonName) {
       setText('users-status', 'Preencha nome, email, celular, senha e comum.')
       return
     }
@@ -73,7 +75,13 @@ export const setupUsersForm = () => {
     setText('users-status', 'Enviando cadastro para aprovação...')
     setButtonLoading(saveButton as HTMLButtonElement | null, true, 'Enviando...')
     try {
-      await api.registerUser({ name, email, phone, password, common_id: commonId })
+      await api.registerUser({
+        name,
+        email,
+        phone,
+        password,
+        common_name: commonName.toUpperCase(),
+      })
       await loadUsersList()
       const nameInput = document.getElementById('user-name') as HTMLInputElement | null
       const emailInput = document.getElementById('user-email') as HTMLInputElement | null
@@ -97,6 +105,7 @@ export const setupUsersForm = () => {
     const action = target.dataset.action
     const id = Number(target.dataset.id)
     if (action !== 'approve' || !id) return
+    if (!requireConfirmClick(target as HTMLButtonElement | null, 'Confirmar')) return
 
     setText('users-status', 'Aprovando usuário...')
     setButtonLoading(target as HTMLButtonElement | null, true, 'Aprovando...')
