@@ -37,8 +37,6 @@ const renderSelectOptions = (items: { id: number; label: string }[], placeholder
 const weekdayOrder = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
 
 let cachedAttendance: Attendance[] = []
-let cachedServices: Service[] = []
-let cachedMusicians: Musician[] = []
 
 const calculateServiceDate = (weekday?: string | null) => {
   if (!weekday) return ''
@@ -178,8 +176,6 @@ export const loadAttendanceLookups = async () => {
       api.getMusicians({ common_id: resolvedCommonId ?? undefined }),
       api.getServices({ common_id: resolvedCommonId ?? undefined }),
     ])
-    cachedMusicians = musicians
-    cachedServices = services
     setAttendanceSelects(musicians, services)
   } catch (error) {
     setText('attendance-status-text', error instanceof Error ? error.message : 'Erro ao carregar opções.')
