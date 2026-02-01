@@ -16,8 +16,8 @@ export const attendanceView = `
           <select id="attendance-service"></select>
         </label>
         <label>
-          <span>Data do culto</span>
-          <input id="attendance-date" type="date" />
+          <span>Data do culto (DD/MM/AAAA)</span>
+          <input id="attendance-date" type="text" inputmode="numeric" placeholder="31/01/2026" />
         </label>
       </div>
       <div id="attendance-warning" class="data-status"></div>

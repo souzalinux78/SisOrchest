@@ -113,8 +113,9 @@ const updateKpis = (
   const { rate, present, absences } = calculateAttendanceRate(attendance, activeMusicians)
   const totalServices = services.length
   const stats = buildMusicianStats(activeMusicians, attendance, totalServices)
-  const averageRate = stats.length
-    ? Math.round(stats.reduce((sum, item) => sum + item.rate, 0) / stats.length)
+  const activeTotal = activeMusicians.length
+  const averageRate = activeTotal
+    ? Math.round((present / activeTotal) * 100)
     : 0
 
   setText('kpi-musicians', `${musicians.length}`)
@@ -129,7 +130,7 @@ const updateKpis = (
   )
 
   setText('kpi-attendance', `${rate}%`)
-  setText('kpi-attendance-detail', `Presentes: ${present} de ${activeMusicians.length}`)
+  setText('kpi-attendance-detail', `Presentes: ${present} de ${activeTotal}`)
   setText('kpi-launches', `${attendance.length}`)
   setText('kpi-launches-detail', 'Total de registros')
   setText('kpi-absences', `${absences}`)
@@ -152,27 +153,41 @@ const updateKpis = (
 
   const weekdayStats = weekdayOrder.map((weekday) => {
     const records = attendance.filter((item) => item.service_weekday === weekday)
-    if (!records.length) return `${weekday}: --`
-    const present = records.filter((item) => item.status === 'present').length
-    const rate = Math.round((present / records.length) * 100)
-    return `${weekday}: ${rate}% (${present}/${records.length})`
+    if (!records.length || !activeTotal) return `${weekday}: --`
+    const presentCount = new Set(
+      records.filter((item) => item.status === 'present').map((item) => item.musician_id),
+    ).size
+    const rate = Math.round((presentCount / activeTotal) * 100)
+    return `${weekday}: ${rate}% (${presentCount}/${activeTotal})`
   })
   setHtml('weekday-frequency', renderList(weekdayStats, 'Sem registros por dia.'))
 
   const serviceComparison = services.map((service) => {
     const records = attendance.filter((item) => item.service_id === service.id)
-    if (!records.length) {
+    if (!records.length || !activeTotal) {
       return `${formatServiceSchedule(service.weekday, service.service_time)}: sem registros`
     }
-    const present = records.filter((item) => item.status === 'present').length
-    const rate = Math.round((present / records.length) * 100)
-    return `${formatServiceSchedule(service.weekday, service.service_time)}: ${rate}% (${present}/${records.length})`
+    const presentCount = new Set(
+      records.filter((item) => item.status === 'present').map((item) => item.musician_id),
+    ).size
+    const rate = Math.round((presentCount / activeTotal) * 100)
+    return `${formatServiceSchedule(service.weekday, service.service_time)}: ${rate}% (${presentCount}/${activeTotal})`
   })
   setHtml('service-comparison', renderList(serviceComparison, 'Sem dados de comparação.'))
 
-  const lowFrequency = stats
-    .filter((item) => item.rate > 0 && item.rate < 70)
-    .map((item) => `${item.musician.name} (${item.rate}% de presença)`)
+  const lowFrequencyServices = services
+    .map((service) => {
+      if (!activeTotal) return null
+      const records = attendance.filter((item) => item.service_id === service.id)
+      const presentCount = new Set(
+        records.filter((item) => item.status === 'present').map((item) => item.musician_id),
+      ).size
+      const rate = Math.round((presentCount / activeTotal) * 100)
+      return rate > 0 && rate < 70
+        ? `${formatServiceSchedule(service.weekday, service.service_time)}: ${rate}% (${presentCount}/${activeTotal})`
+        : null
+    })
+    .filter((item): item is string => Boolean(item))
   const consecutiveAbsences = stats
     .map((item) => {
       const sorted = item.records
@@ -190,8 +205,8 @@ const updateKpis = (
   if (consecutiveAbsences.length) {
     alerts.push(`Faltas consecutivas: ${consecutiveAbsences.join(', ')}`)
   }
-  if (lowFrequency.length) {
-    alerts.push(`Frequência abaixo de 70%: ${lowFrequency.join(', ')}`)
+  if (lowFrequencyServices.length) {
+    alerts.push(`Cultos abaixo de 70%: ${lowFrequencyServices.join(', ')}`)
   }
   setHtml('attendance-alerts', renderList(alerts, 'Nenhum alerta no momento.'))
 }

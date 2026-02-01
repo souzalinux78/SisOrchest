@@ -38,6 +38,25 @@ const weekdayOrder = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta
 
 let cachedAttendance: Attendance[] = []
 
+const formatBrDate = (value?: string | null) => {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(date)
+}
+
+const parseBrDateToIso = (value?: string | null) => {
+  if (!value) return ''
+  const trimmed = value.trim()
+  const match = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+  if (!match) return ''
+  const [, day, month, year] = match
+  const iso = `${year}-${month}-${day}`
+  const parsed = new Date(`${iso}T00:00:00`)
+  if (Number.isNaN(parsed.getTime())) return ''
+  return iso
+}
+
 const calculateServiceDate = (weekday?: string | null) => {
   if (!weekday) return ''
   const targetIndex = weekdayOrder.indexOf(weekday)
@@ -92,7 +111,7 @@ const renderExistingAttendance = (serviceId?: number | null, serviceDate?: strin
           (item) => `
           <li>
             <strong>${item.name}</strong> (${item.instrument}) —
-            ${item.status === 'present' ? 'Presente' : 'Ausente'} em ${formatDate(item.service_date)}.
+            ${item.status === 'present' ? 'Presente' : 'Ausente'} em ${formatBrDate(item.service_date)}.
             Registrado em ${formatDateTime(item.recorded_at)}.
           </li>
         `,
@@ -139,11 +158,19 @@ const setAttendanceSelects = (musicians: Musician[], services: Service[]) => {
     const selectedService = services.find(
       (service) => String(service.id) === serviceSelect?.value,
     )
-    dateInput.value = calculateServiceDate(selectedService?.weekday)
+    const isoDate = calculateServiceDate(selectedService?.weekday)
+    dateInput.value = isoDate ? formatBrDate(isoDate) : ''
   }
 
   if (warning) warning.textContent = ''
-  renderExistingAttendance(Number(serviceSelect?.value ?? 0), dateInput?.value)
+}
+
+const refreshAttendanceCache = async () => {
+  const currentUser = getCurrentUser()
+  const resolvedCommonId = currentUser?.role === 'admin' ? null : currentUser?.common_id ?? null
+  const attendance = await api.getAttendance({ common_id: resolvedCommonId ?? undefined })
+  cachedAttendance = attendance
+  return attendance
 }
 
 export const loadAttendanceList = async (commonId?: number | null) => {
@@ -172,6 +199,11 @@ export const loadAttendanceLookups = async () => {
       api.getServices({ common_id: resolvedCommonId ?? undefined }),
     ])
     setAttendanceSelects(musicians, services)
+    await refreshAttendanceCache()
+    const serviceSelect = document.getElementById('attendance-service') as HTMLSelectElement | null
+    const dateInput = document.getElementById('attendance-date') as HTMLInputElement | null
+    const isoDate = parseBrDateToIso(dateInput?.value ?? '')
+    renderExistingAttendance(Number(serviceSelect?.value ?? 0), isoDate)
   } catch (error) {
     setText('attendance-status-text', error instanceof Error ? error.message : 'Erro ao carregar opções.')
   }
@@ -190,10 +222,13 @@ export const setupAttendanceForm = () => {
       const services = await api.getServices({ common_id: resolvedCommonId ?? undefined })
       const selected = services.find((service) => String(service.id) === serviceSelect.value)
       if (dateInput) {
-        dateInput.value = calculateServiceDate(selected?.weekday)
+        const isoDate = calculateServiceDate(selected?.weekday)
+        dateInput.value = isoDate ? formatBrDate(isoDate) : ''
       }
       if (warning) warning.textContent = ''
-      renderExistingAttendance(Number(serviceSelect.value), dateInput?.value)
+      await refreshAttendanceCache()
+      const isoDate = parseBrDateToIso(dateInput?.value ?? '')
+      renderExistingAttendance(Number(serviceSelect.value), isoDate)
     } catch {
       if (dateInput) dateInput.value = ''
     }
@@ -201,7 +236,12 @@ export const setupAttendanceForm = () => {
 
   dateInput?.addEventListener('change', () => {
     if (!dateInput?.value) return
-    const selectedDate = new Date(`${dateInput.value}T00:00:00`)
+    const isoDate = parseBrDateToIso(dateInput.value)
+    if (!isoDate) {
+      setText('attendance-status-text', 'Data inválida. Use o formato DD/MM/AAAA.')
+      return
+    }
+    const selectedDate = new Date(`${isoDate}T00:00:00`)
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     if (warning) {
@@ -210,7 +250,9 @@ export const setupAttendanceForm = () => {
           ? 'Você está lançando presença para um culto passado.'
           : ''
     }
-    renderExistingAttendance(Number(serviceSelect?.value ?? 0), dateInput.value)
+    refreshAttendanceCache().then(() => {
+      renderExistingAttendance(Number(serviceSelect?.value ?? 0), isoDate)
+    })
   })
 
   listContainer?.addEventListener('change', async (event) => {
@@ -218,7 +260,7 @@ export const setupAttendanceForm = () => {
     if (!target || target.type !== 'checkbox') return
 
     const serviceId = Number(serviceSelect?.value ?? 0)
-    const serviceDate = dateInput?.value ?? ''
+    const serviceDate = parseBrDateToIso(dateInput?.value ?? '')
     const serviceWeekday =
       serviceSelect?.selectedOptions[0]?.textContent?.split(' às ')[0]?.trim() ?? ''
 
