@@ -5,6 +5,7 @@ import { getCurrentUser } from './session'
 import Chart from 'chart.js/auto'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import type { UserOptions } from 'jspdf-autotable'
 
 type ReportRow = {
   musicianName: string
@@ -214,7 +215,7 @@ const exportReportPdf = (rows: ReportRow[]) => {
   drawHeader()
   drawFooter()
 
-  const baseTable = {
+  const baseTable: UserOptions = {
     theme: 'grid' as const,
     styles: {
       textColor: colors.text,
@@ -273,7 +274,6 @@ const exportReportPdf = (rows: ReportRow[]) => {
     attendance.filter((item) => item.status === 'present').map((item) => item.musician_id),
   ).size
   const presenceRate = activeTotal ? (totalPresent / activeTotal) * 100 : 0
-  const absenceRate = 100 - presenceRate
   const averagePresenceRate = serviceGroups.length
     ? serviceGroups.reduce((sum, group) => {
         const presentCount = new Set(
