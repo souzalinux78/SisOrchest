@@ -141,15 +141,13 @@ const renderChart = (rows: ReportRow[]) => {
 
 const exportReportPdf = (rows: ReportRow[]) => {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
-  const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
   const colors = {
     gold: [212, 175, 55] as [number, number, number],
-    goldLight: [231, 206, 120] as [number, number, number],
-    background: [15, 15, 15] as [number, number, number],
-    surface: [22, 22, 22] as [number, number, number],
-    text: [235, 235, 235] as [number, number, number],
-    muted: [180, 180, 180] as [number, number, number],
+    text: [17, 17, 17] as [number, number, number],
+    muted: [68, 68, 68] as [number, number, number],
+    border: [210, 210, 210] as [number, number, number],
+    surface: [248, 248, 248] as [number, number, number],
   }
 
   const context = currentReportContext
@@ -170,11 +168,6 @@ const exportReportPdf = (rows: ReportRow[]) => {
     if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
     if (value.includes('T')) return value.split('T')[0]
     return value
-  }
-
-  const applyBackground = () => {
-    doc.setFillColor(...colors.background)
-    doc.rect(0, 0, pageWidth, pageHeight, 'F')
   }
 
   const getPeriodLabel = () => {
@@ -211,37 +204,40 @@ const exportReportPdf = (rows: ReportRow[]) => {
     doc.text(getFooterLabel(), 14, pageHeight - 10)
   }
 
-  applyBackground()
-  drawHeader()
-  drawFooter()
-
   const baseTable: UserOptions = {
-    theme: 'grid' as const,
+    theme: 'grid',
     styles: {
       textColor: colors.text,
       fontSize: 9,
       cellPadding: 2,
-      lineColor: colors.gold,
+      lineColor: colors.border,
       lineWidth: 0.1,
-      fillColor: colors.surface,
+      fillColor: [255, 255, 255],
     },
     headStyles: {
       fillColor: colors.gold,
-      textColor: [10, 10, 10],
+      textColor: [20, 20, 20],
       fontStyle: 'bold',
     },
     alternateRowStyles: {
-      fillColor: [20, 20, 20],
+      fillColor: colors.surface,
     },
     didDrawPage: () => {
-      applyBackground()
       drawHeader()
       drawFooter()
     },
   }
 
+  const safeAutoTable = (options: UserOptions & { body?: unknown[] }) => {
+    if (options.body && options.body.length === 0) return
+    autoTable(doc, options)
+  }
+
+  drawHeader()
+  drawFooter()
+
   if (!attendance.length || !activeTotal) {
-    autoTable(doc, {
+    safeAutoTable({
       startY: 26,
       head: [['Resumo geral']],
       body: [['Nenhum registro encontrado para este período.']],
@@ -270,10 +266,6 @@ const exportReportPdf = (rows: ReportRow[]) => {
 
   const serviceGroups = groupByServiceDate()
   const totalCultos = serviceGroups.length
-  const totalPresent = new Set(
-    attendance.filter((item) => item.status === 'present').map((item) => item.musician_id),
-  ).size
-  const presenceRate = activeTotal ? (totalPresent / activeTotal) * 100 : 0
   const averagePresenceRate = serviceGroups.length
     ? serviceGroups.reduce((sum, group) => {
         const presentCount = new Set(
@@ -283,7 +275,7 @@ const exportReportPdf = (rows: ReportRow[]) => {
       }, 0) / serviceGroups.length
     : 0
 
-  autoTable(doc, {
+  safeAutoTable({
     startY: 26,
     head: [['Resumo geral']],
     body: [[
@@ -291,11 +283,9 @@ const exportReportPdf = (rows: ReportRow[]) => {
     ], [
       `Total de cultos: ${totalCultos}`,
     ], [
-      `Percentual de presença (base ativos): ${formatPercent(presenceRate)}`,
+      `Presença média: ${formatPercent(averagePresenceRate)}`,
     ], [
-      `Média geral de presença: ${formatPercent(averagePresenceRate)}`,
-    ], [
-      `Média geral de faltas: ${formatPercent(100 - averagePresenceRate)}`,
+      `Faltas médias: ${formatPercent(100 - averagePresenceRate)}`,
     ]],
     ...baseTable,
   })
@@ -303,15 +293,24 @@ const exportReportPdf = (rows: ReportRow[]) => {
   const nextY = () =>
     ((doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 32) + 6
 
+  const rankingRows = rows
+    .map((row) => ({
+      name: row.musicianName,
+      total: row.totalServices,
+      presences: row.attendanceCount,
+      rate: row.percentage,
+    }))
+    .sort((a, b) => b.rate - a.rate)
+
   if (serviceGroups.length === 1) {
     const group = serviceGroups[0]
     const presentCount = new Set(
       group.records.filter((item) => item.status === 'present').map((item) => item.musician_id),
     ).size
     const rate = activeTotal ? (presentCount / activeTotal) * 100 : 0
-    autoTable(doc, {
+    safeAutoTable({
       startY: nextY(),
-      head: [['Relatório de culto']],
+      head: [['Relatório por culto']],
       body: [[
         `Data: ${formatIsoDate(group.date)}`,
       ], [
@@ -330,7 +329,7 @@ const exportReportPdf = (rows: ReportRow[]) => {
       ...baseTable,
     })
 
-    autoTable(doc, {
+    safeAutoTable({
       startY: nextY(),
       head: [['Músico', 'Instrumento', 'Status']],
       body: group.records.length
@@ -371,19 +370,19 @@ const exportReportPdf = (rows: ReportRow[]) => {
       const averageRate = week.cultos.length
         ? week.cultos.reduce((sum, item) => sum + item.rate, 0) / week.cultos.length
         : 0
-      autoTable(doc, {
+      safeAutoTable({
         startY: nextY(),
         head: [[`Resumo semanal - ${week.label}`]],
         body: [[
           `Total de cultos: ${week.cultos.length}`,
         ], [
-          `Média de presença: ${formatPercent(averageRate)}`,
+          `Presença média: ${formatPercent(averageRate)}`,
         ], [
-          `Média de faltas: ${formatPercent(100 - averageRate)}`,
+          `Faltas médias: ${formatPercent(100 - averageRate)}`,
         ]],
         ...baseTable,
       })
-      autoTable(doc, {
+      safeAutoTable({
         startY: nextY(),
         head: [['Data', 'Presentes', 'Total músicos', 'Presença %', 'Faltas %']],
         body: week.cultos.map((culto) => {
@@ -428,19 +427,19 @@ const exportReportPdf = (rows: ReportRow[]) => {
       const averageRate = month.cultos.length
         ? month.cultos.reduce((sum, item) => sum + item.rate, 0) / month.cultos.length
         : 0
-      autoTable(doc, {
+      safeAutoTable({
         startY: nextY(),
         head: [[`Resumo mensal - ${month.label}`]],
         body: [[
           `Total de cultos: ${month.cultos.length}`,
         ], [
-          `Média de presença: ${formatPercent(averageRate)}`,
+          `Presença média: ${formatPercent(averageRate)}`,
         ], [
-          `Média de faltas: ${formatPercent(100 - averageRate)}`,
+          `Faltas médias: ${formatPercent(100 - averageRate)}`,
         ]],
         ...baseTable,
       })
-      autoTable(doc, {
+      safeAutoTable({
         startY: nextY(),
         head: [['Dia do culto', 'Presentes', 'Total músicos', 'Presença %', 'Faltas %']],
         body: month.cultos.map((culto) => {
@@ -458,7 +457,21 @@ const exportReportPdf = (rows: ReportRow[]) => {
     })
   }
 
-  autoTable(doc, {
+  safeAutoTable({
+    startY: nextY(),
+    head: [['Ranking de músicos', '', '', '']],
+    body: rankingRows.length
+      ? rankingRows.map((row) => [
+          row.name,
+          `Presenças: ${row.presences}`,
+          `Cultos: ${row.total}`,
+          `Presença: ${formatPercent(row.rate)}`,
+        ])
+      : [['Nenhum dado disponível para este período.', '', '', '']],
+    ...baseTable,
+  })
+
+  safeAutoTable({
     startY: nextY(),
     head: [['Músico', 'Comum', 'Presenças', 'Total cultos', 'Percentual']],
     body: rows.length
