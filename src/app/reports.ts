@@ -291,6 +291,8 @@ const exportReportPdf = (rows: ReportRow[]) => {
     ], [
       `Total de cultos: ${totalCultos}`,
     ], [
+      `Percentual de presença (base ativos): ${formatPercent(presenceRate)}`,
+    ], [
       `Média geral de presença: ${formatPercent(averagePresenceRate)}`,
     ], [
       `Média geral de faltas: ${formatPercent(100 - averagePresenceRate)}`,
