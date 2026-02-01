@@ -37,6 +37,8 @@ const renderSelectOptions = (items: { id: number; label: string }[], placeholder
 const weekdayOrder = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
 
 let cachedAttendance: Attendance[] = []
+let originalStatusMap = new Map<number, 'present' | 'absent'>()
+let hasChanges = false
 
 const formatBrDate = (value?: string | null) => {
   if (!value) return ''
@@ -84,10 +86,12 @@ const applyExistingToChecklist = (serviceId?: number | null, serviceDate?: strin
   if (!serviceId || !serviceDate) return
   const normalizedDate = normalizeIsoDate(serviceDate)
   const rows = document.querySelectorAll<HTMLLabelElement>('.attendance-item')
+  originalStatusMap = new Map()
   rows.forEach((row) => {
     const checkbox = row.querySelector<HTMLInputElement>('input[type="checkbox"]')
     if (!checkbox) return
     checkbox.checked = false
+    originalStatusMap.set(Number(checkbox.value), 'absent')
     const existing = cachedAttendance.find(
       (item) =>
         item.service_id === serviceId &&
@@ -96,7 +100,11 @@ const applyExistingToChecklist = (serviceId?: number | null, serviceDate?: strin
     )
     if (!existing) return
     checkbox.checked = existing.status === 'present'
+    originalStatusMap.set(Number(checkbox.value), existing.status === 'present' ? 'present' : 'absent')
   })
+  hasChanges = false
+  const saveButton = document.getElementById('attendance-save') as HTMLButtonElement | null
+  if (saveButton) saveButton.disabled = true
 }
 
 const renderExistingAttendance = (serviceId?: number | null, serviceDate?: string) => {
@@ -114,6 +122,8 @@ const renderExistingAttendance = (serviceId?: number | null, serviceDate?: strin
   )
   if (!existing.length) {
     container.innerHTML = ''
+    applyExistingToChecklist(serviceId, normalizedDate)
+    setText('attendance-status-text', 'Modo novo lançamento: nenhuma presença registrada.')
     return
   }
 
@@ -134,6 +144,7 @@ const renderExistingAttendance = (serviceId?: number | null, serviceDate?: strin
     </ul>
   `
   applyExistingToChecklist(serviceId, normalizedDate)
+  setText('attendance-status-text', 'Modo edição: presenças existentes carregadas.')
 }
 
 const setAttendanceSelects = (musicians: Musician[], services: Service[]) => {
@@ -224,6 +235,7 @@ export const loadAttendanceLookups = async () => {
 }
 
 export const setupAttendanceForm = () => {
+  const saveButton = document.getElementById('attendance-save') as HTMLButtonElement | null
   const serviceSelect = document.getElementById('attendance-service') as HTMLSelectElement | null
   const dateInput = document.getElementById('attendance-date') as HTMLInputElement | null
   const warning = document.getElementById('attendance-warning')
@@ -269,7 +281,7 @@ export const setupAttendanceForm = () => {
     })
   })
 
-  listContainer?.addEventListener('change', async (event) => {
+  listContainer?.addEventListener('change', (event) => {
     const target = event.target as HTMLInputElement | null
     if (!target || target.type !== 'checkbox') return
 
@@ -285,17 +297,11 @@ export const setupAttendanceForm = () => {
     }
 
     const musicianId = Number(target.value)
-    const existing = cachedAttendance.find(
-      (record) =>
-        record.service_id === serviceId &&
-        record.musician_id === musicianId &&
-        normalizeIsoDate(record.service_date) === serviceDate,
-    )
+    const originalStatus = originalStatusMap.get(musicianId) ?? 'absent'
     const nextStatus = target.checked ? 'present' : 'absent'
-
-    if (existing?.status === 'present' && nextStatus === 'absent') {
+    if (originalStatus === 'present' && nextStatus === 'absent') {
       const confirmChange = window.confirm(
-        'Este músico já possui presença registrada. Deseja realmente marcar como falta?',
+        'Este músico já estava marcado como presente. Deseja realmente alterar para falta?',
       )
       if (!confirmChange) {
         target.checked = true
@@ -303,21 +309,72 @@ export const setupAttendanceForm = () => {
       }
     }
 
-    setText('attendance-status-text', 'Salvando presença...')
-    try {
-      await api.registerAttendance({
-        service_id: serviceId,
-        musician_id: musicianId,
-        status: nextStatus,
-        service_weekday: serviceWeekday,
-        service_date: serviceDate,
+    hasChanges = true
+    if (saveButton) saveButton.disabled = false
+    setText('attendance-status-text', 'Alterações pendentes. Clique em "Salvar alterações".')
+  })
+
+  saveButton?.addEventListener('click', async () => {
+    const serviceId = Number(serviceSelect?.value ?? 0)
+    const serviceDate = parseBrDateToIso(dateInput?.value ?? '')
+    const serviceWeekday =
+      serviceSelect?.selectedOptions[0]?.textContent?.split(' às ')[0]?.trim() ?? ''
+
+    if (!serviceId || !serviceDate || !serviceWeekday) {
+      setText('attendance-status-text', 'Selecione um culto válido antes de salvar.')
+      return
+    }
+
+    const checkboxes = Array.from(
+      document.querySelectorAll<HTMLInputElement>('#attendance-musicians-list input[type="checkbox"]'),
+    )
+    const changes = checkboxes
+      .map((checkbox) => {
+        const musicianId = Number(checkbox.value)
+        const currentStatus = checkbox.checked ? 'present' : 'absent'
+        const originalStatus = originalStatusMap.get(musicianId) ?? 'absent'
+        return originalStatus !== currentStatus
+          ? { musicianId, currentStatus, originalStatus }
+          : null
       })
+      .filter((item): item is { musicianId: number; currentStatus: 'present' | 'absent'; originalStatus: 'present' | 'absent' } => Boolean(item))
+
+    if (!changes.length || !hasChanges) {
+      setText('attendance-status-text', 'Nenhuma alteração para salvar.')
+      return
+    }
+
+    const removedPresence = changes.some(
+      (item) => item.originalStatus === 'present' && item.currentStatus === 'absent',
+    )
+    if (removedPresence) {
+      const confirmChange = window.confirm(
+        'Você removeu a presença de um músico que estava marcado como presente. Deseja realmente confirmar esta alteração?',
+      )
+      if (!confirmChange) return
+    }
+
+    setText('attendance-status-text', 'Salvando alterações...')
+    saveButton.disabled = true
+    try {
+      await Promise.all(
+        changes.map((change) =>
+          api.registerAttendance({
+            service_id: serviceId,
+            musician_id: change.musicianId,
+            status: change.currentStatus,
+            service_weekday: serviceWeekday,
+            service_date: serviceDate,
+          }),
+        ),
+      )
       await loadAttendanceList()
       renderExistingAttendance(serviceId, serviceDate)
-      setText('attendance-status-text', 'Presença atualizada.')
+      hasChanges = false
+      setText('attendance-status-text', 'Alterações salvas com sucesso.')
     } catch (error) {
-      setText('attendance-status-text', error instanceof Error ? error.message : 'Erro ao registrar presença.')
-      target.checked = !target.checked
+      setText('attendance-status-text', error instanceof Error ? error.message : 'Erro ao salvar alterações.')
+      saveButton.disabled = false
     }
   })
 }
