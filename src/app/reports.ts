@@ -572,6 +572,9 @@ const loadReportData = async (filters: { commonId?: number | null; musicianId?: 
       weekday: filters.weekday || '',
     })
 
+    const filteredServices = filters.weekday
+      ? services.filter((service) => service.weekday === filters.weekday)
+      : services
     currentReportRows = reportRows
     currentReportContext = {
       attendance: filteredAttendance,
@@ -580,9 +583,6 @@ const loadReportData = async (filters: { commonId?: number | null; musicianId?: 
     }
     setHtml('reports-table-body', renderReportTable(reportRows))
     renderChart(reportRows)
-    const filteredServices = filters.weekday
-      ? services.filter((service) => service.weekday === filters.weekday)
-      : services
     applySummary(reportRows, filteredServices, filteredAttendance, activeMusicians)
     setHtml('reports-history-body', renderHistoryTable(buildHistoryRows(filteredAttendance)))
     const periodRates = buildPresenceRatesByPeriod(filteredAttendance, activeMusicians.length)
