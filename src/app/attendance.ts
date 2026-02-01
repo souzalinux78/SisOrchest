@@ -372,6 +372,7 @@ export const setupAttendanceForm = () => {
       renderExistingAttendance(serviceId, serviceDate)
       hasChanges = false
       setText('attendance-status-text', 'Alterações salvas com sucesso.')
+      window.dispatchEvent(new CustomEvent('attendance:updated'))
     } catch (error) {
       setText('attendance-status-text', error instanceof Error ? error.message : 'Erro ao salvar alterações.')
       saveButton.disabled = false

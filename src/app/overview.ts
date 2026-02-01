@@ -14,6 +14,13 @@ export const setupFeatureHandlers = () => {
   setupCommonsForm()
   setupUsersForm()
   setupReports()
+
+  window.addEventListener('attendance:updated', async () => {
+    const currentUser = getCurrentUser()
+    const commonId = currentUser?.role === 'admin' ? null : currentUser?.common_id ?? null
+    await loadDashboardData(commonId)
+    await loadReports()
+  })
 }
 
 export const loadAllData = async () => {
