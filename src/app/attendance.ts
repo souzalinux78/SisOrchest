@@ -1,6 +1,6 @@
 import { api } from './api'
 import type { Attendance, Musician, Service } from './api'
-import { clearTableLoading, formatDate, formatDateTime, formatServiceSchedule, requireConfirmClick, setButtonLoading, setHtml, setTableLoading, setText } from './dom'
+import { clearTableLoading, formatDate, formatDateTime, formatServiceSchedule, setHtml, setTableLoading, setText } from './dom'
 import { getCurrentUser } from './session'
 
 const renderAttendanceTable = (attendance: Attendance[]) => {
@@ -58,14 +58,13 @@ const applyExistingToChecklist = (serviceId?: number | null, serviceDate?: strin
   const rows = document.querySelectorAll<HTMLLabelElement>('.attendance-item')
   rows.forEach((row) => {
     const checkbox = row.querySelector<HTMLInputElement>('input[type="checkbox"]')
-    const statusSelect = row.querySelector<HTMLSelectElement>('.attendance-status')
-    if (!checkbox || !statusSelect) return
+    if (!checkbox) return
+    checkbox.checked = false
     const existing = cachedAttendance.find(
       (item) => item.service_id === serviceId && item.musician_id === Number(checkbox.value),
     )
     if (!existing || existing.service_date !== serviceDate) return
-    checkbox.checked = true
-    statusSelect.value = existing.status === 'present' ? 'present' : 'absent'
+    checkbox.checked = existing.status === 'present'
   })
 }
 
@@ -126,14 +125,10 @@ const setAttendanceSelects = (musicians: Musician[], services: Service[]) => {
       ? activeMusicians
           .map(
             (musician) => `
-          <label class="attendance-item">
-            <input type="checkbox" value="${musician.id}" />
-            <span>${musician.name} - ${musician.instrument}</span>
-            <select class="attendance-status">
-              <option value="present">Presente</option>
-              <option value="absent">Ausente</option>
-            </select>
-          </label>
+        <label class="attendance-item">
+          <input type="checkbox" value="${musician.id}" />
+          <span>${musician.name} - ${musician.instrument}</span>
+        </label>
         `,
           )
           .join('')
@@ -183,10 +178,10 @@ export const loadAttendanceLookups = async () => {
 }
 
 export const setupAttendanceForm = () => {
-  const saveButton = document.getElementById('attendance-save')
   const serviceSelect = document.getElementById('attendance-service') as HTMLSelectElement | null
   const dateInput = document.getElementById('attendance-date') as HTMLInputElement | null
   const warning = document.getElementById('attendance-warning')
+  const listContainer = document.getElementById('attendance-musicians-list')
 
   serviceSelect?.addEventListener('change', async () => {
     try {
@@ -218,101 +213,55 @@ export const setupAttendanceForm = () => {
     renderExistingAttendance(Number(serviceSelect?.value ?? 0), dateInput.value)
   })
 
-  saveButton?.addEventListener('click', async () => {
-    const serviceId = Number(
-      (document.getElementById('attendance-service') as HTMLSelectElement | null)?.value,
-    )
+  listContainer?.addEventListener('change', async (event) => {
+    const target = event.target as HTMLInputElement | null
+    if (!target || target.type !== 'checkbox') return
+
+    const serviceId = Number(serviceSelect?.value ?? 0)
     const serviceDate = dateInput?.value ?? ''
     const serviceWeekday =
       serviceSelect?.selectedOptions[0]?.textContent?.split(' às ')[0]?.trim() ?? ''
-    const selectedMusicians = Array.from(
-      document.querySelectorAll<HTMLInputElement>('#attendance-musicians-list input:checked'),
-    ).map((input) => {
-      const statusSelect = input.closest('.attendance-item')?.querySelector<HTMLSelectElement>('.attendance-status')
-      return {
-        id: Number(input.value),
-        status: statusSelect?.value ?? 'present',
-      }
-    })
 
     if (!serviceId || !serviceDate || !serviceWeekday) {
-      setText('attendance-status-text', 'Selecione um culto válido.')
+      setText('attendance-status-text', 'Selecione um culto válido antes de registrar presença.')
+      target.checked = false
       return
     }
 
-    if (!selectedMusicians.length) {
-      setText('attendance-status-text', 'Selecione pelo menos um músico.')
-      return
-    }
-
-    const duplicates = selectedMusicians
-      .map((item) => {
-        const existing = cachedAttendance.find(
-          (record) => record.service_id === serviceId && record.musician_id === item.id,
-        )
-        return existing ? { existing, nextStatus: item.status } : null
-      })
-      .filter((item): item is { existing: Attendance; nextStatus: string } => Boolean(item))
-
-    if (duplicates.length) {
-      const sameDate = duplicates.filter((item) => item.existing.service_date === serviceDate)
-      const otherDate = duplicates.filter((item) => item.existing.service_date !== serviceDate)
-      const details = sameDate
-        .map(
-          (item) =>
-            `${item.existing.name} (${item.existing.status === 'present' ? 'Presente' : 'Ausente'} em ${formatDate(
-              item.existing.service_date,
-            )})`,
-        )
-        .join(', ')
-      const otherDateDetails = otherDate
-        .map(
-          (item) =>
-            `${item.existing.name} (registrado em ${formatDate(item.existing.service_date)})`,
-        )
-        .join(', ')
-      const messages = []
-      if (details) {
-        messages.push(`Já existe lançamento na mesma data para: ${details}.`)
-      }
-      if (otherDateDetails) {
-        messages.push(`Há registros do culto em outras datas para: ${otherDateDetails}. Eles serão atualizados.`)
-      }
-      setText('attendance-status-text', `${messages.join(' ')} Se desejar, você pode atualizar o status e salvar.`)
-    }
-
-    const requiresConfirm = duplicates.some(
-      (item) => item.existing.status === 'present' && item.nextStatus === 'absent',
+    const musicianId = Number(target.value)
+    const existing = cachedAttendance.find(
+      (record) =>
+        record.service_id === serviceId &&
+        record.musician_id === musicianId &&
+        record.service_date === serviceDate,
     )
-    if (requiresConfirm) {
-      setText(
-        'attendance-status-text',
-        'Atenção: esta presença já foi registrada. Deseja realmente alterar este lançamento?',
+    const nextStatus = target.checked ? 'present' : 'absent'
+
+    if (existing?.status === 'present' && nextStatus === 'absent') {
+      const confirmChange = window.confirm(
+        'Este músico já possui presença registrada. Deseja realmente marcar como falta?',
       )
-      if (!requireConfirmClick(saveButton as HTMLButtonElement | null, 'Confirmar')) return
+      if (!confirmChange) {
+        target.checked = true
+        return
+      }
     }
 
-    setText('attendance-status-text', 'Registrando presença...')
-    setButtonLoading(saveButton as HTMLButtonElement | null, true, 'Registrando...')
+    setText('attendance-status-text', 'Salvando presença...')
     try {
-      await Promise.all(
-        selectedMusicians.map((musician) =>
-          api.registerAttendance({
-            service_id: serviceId,
-            musician_id: musician.id,
-            status: musician.status,
-            service_weekday: serviceWeekday,
-            service_date: serviceDate,
-          }),
-        ),
-      )
+      await api.registerAttendance({
+        service_id: serviceId,
+        musician_id: musicianId,
+        status: nextStatus,
+        service_weekday: serviceWeekday,
+        service_date: serviceDate,
+      })
       await loadAttendanceList()
       renderExistingAttendance(serviceId, serviceDate)
-      setText('attendance-status-text', 'Presença registrada com sucesso.')
+      setText('attendance-status-text', 'Presença atualizada.')
     } catch (error) {
       setText('attendance-status-text', error instanceof Error ? error.message : 'Erro ao registrar presença.')
-    } finally {
-      setButtonLoading(saveButton as HTMLButtonElement | null, false)
+      target.checked = !target.checked
     }
   })
 }

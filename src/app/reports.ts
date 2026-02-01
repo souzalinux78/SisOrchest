@@ -48,6 +48,7 @@ const buildReport = (
   musicians: Musician[],
   services: Service[],
   attendance: Attendance[],
+  activeMusicians: Musician[],
   filters: { commonId?: number | null; musicianId?: number | null; weekday?: string },
 ): ReportRow[] => {
   const filteredServices = filters.weekday
@@ -58,16 +59,19 @@ const buildReport = (
   const filteredAttendance = attendance.filter((item) => serviceIds.has(item.service_id))
 
   const filteredMusicians = filters.musicianId
-    ? musicians.filter((musician) => musician.id === filters.musicianId)
-    : musicians
+    ? activeMusicians.filter((musician) => musician.id === filters.musicianId)
+    : activeMusicians
 
   const totalServices = filteredServices.length
+  const totalActiveMusicians = activeMusicians.length
 
   return filteredMusicians.map((musician) => {
     const attendanceCount = filteredAttendance.filter(
       (item) => item.musician_id === musician.id && item.status === 'present',
     ).length
-    const percentage = totalServices ? Math.round((attendanceCount / totalServices) * 100) : 0
+    const percentage = totalActiveMusicians
+      ? Math.round((attendanceCount / totalActiveMusicians) * 100)
+      : 0
     const commonName = commons.find((common) => common.id === musician.common_id)?.name ?? '--'
 
     return {
@@ -168,13 +172,20 @@ const populateReportFilters = (commons: Common[], musicians: Musician[]) => {
   }
 }
 
-const applySummary = (rows: ReportRow[], services: Service[]) => {
+const applySummary = (
+  rows: ReportRow[],
+  services: Service[],
+  attendance: Attendance[],
+  activeMusicians: Musician[],
+) => {
   const totalMusicians = rows.length
   const totalAttendance = rows.reduce((sum, row) => sum + row.attendanceCount, 0)
   const totalServices = services.length
-  const averageRate = totalServices
-    ? Math.round((totalAttendance / (totalServices * Math.max(totalMusicians, 1))) * 100)
-    : 0
+  const activeTotal = activeMusicians.length
+  const presentUnique = new Set(
+    attendance.filter((item) => item.status === 'present').map((item) => item.musician_id),
+  ).size
+  const averageRate = activeTotal ? Math.round((presentUnique / activeTotal) * 100) : 0
 
   const nextService = services
     .slice()
@@ -188,13 +199,115 @@ const applySummary = (rows: ReportRow[], services: Service[]) => {
     'reports-summary',
     `Equipe ativa: ${totalMusicians} músicos. Presenças registradas: ${totalAttendance}.`,
   )
-  setText('reports-attendance', `Frequência média: ${averageRate}% de presença.`)
   setText(
     'reports-services',
     nextService
       ? `Próximo culto: ${formatServiceSchedule(nextService.weekday, nextService.service_time)}.`
       : 'Sem cultos cadastrados.',
   )
+
+  if (!attendance.length) {
+    setText('reports-period', 'Sem registros no período selecionado.')
+    return
+  }
+  const sortedDates = attendance
+    .map((item) => item.service_date ?? '')
+    .filter(Boolean)
+    .sort()
+  const first = sortedDates[0]
+  const last = sortedDates[sortedDates.length - 1]
+  const absences = Math.max(activeTotal - presentUnique, 0)
+  setText(
+    'reports-period',
+    `Período: ${first ? formatServiceDate(first) : '--'} até ${last ? formatServiceDate(last) : '--'} • Presentes: ${presentUnique} de ${activeTotal} • Faltas: ${absences}`,
+  )
+}
+
+const buildPresenceRatesByPeriod = (attendance: Attendance[], activeTotal: number) => {
+  const byDate = new Map<string, Set<number>>()
+  attendance.forEach((item) => {
+    const date = item.service_date ?? ''
+    if (!date) return
+    if (!byDate.has(date)) byDate.set(date, new Set())
+    if (item.status === 'present') {
+      byDate.get(date)?.add(item.musician_id)
+    }
+  })
+
+  const dayRates = Array.from(byDate.entries()).map(([date, presentSet]) => {
+    const rate = activeTotal ? Math.round((presentSet.size / activeTotal) * 100) : 0
+    return { date, rate }
+  })
+
+  const weekRates = new Map<string, number[]>()
+  const monthRates = new Map<string, number[]>()
+  dayRates.forEach((item) => {
+    const date = new Date(`${item.date}T00:00:00`)
+    if (Number.isNaN(date.getTime())) return
+    const weekKey = `${date.getFullYear()}-W${Math.ceil(((date.getDate() + (new Date(date.getFullYear(), date.getMonth(), 1).getDay() || 7) - 1) / 7))}`
+    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+    if (!weekRates.has(weekKey)) weekRates.set(weekKey, [])
+    if (!monthRates.has(monthKey)) monthRates.set(monthKey, [])
+    weekRates.get(weekKey)?.push(item.rate)
+    monthRates.get(monthKey)?.push(item.rate)
+  })
+
+  const average = (values: number[]) =>
+    values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : 0
+  const lastWeek = Array.from(weekRates.keys()).sort().pop()
+  const lastMonth = Array.from(monthRates.keys()).sort().pop()
+
+  return {
+    dayAverage: average(dayRates.map((item) => item.rate)),
+    weekAverage: lastWeek ? average(weekRates.get(lastWeek) ?? []) : 0,
+    monthAverage: lastMonth ? average(monthRates.get(lastMonth) ?? []) : 0,
+    trend: dayRates,
+  }
+}
+
+const formatServiceDate = (value?: string | null) => {
+  if (!value) return '--'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(date)
+}
+
+const buildHistoryRows = (attendance: Attendance[]) => {
+  const byDate = new Map<string, { date: string; weekday: string; present: number; absent: number }>()
+  attendance.forEach((item) => {
+    const dateKey = item.service_date ?? '--'
+    const current = byDate.get(dateKey) ?? { date: dateKey, weekday: item.service_weekday ?? '--', present: 0, absent: 0 }
+    if (item.status === 'present') {
+      current.present += 1
+    } else {
+      current.absent += 1
+    }
+    byDate.set(dateKey, current)
+  })
+
+  return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date))
+}
+
+const renderHistoryTable = (rows: { date: string; weekday: string; present: number; absent: number }[]) => {
+  if (!rows.length) {
+    return `
+      <tr>
+        <td colspan="4" class="empty-row">Sem lançamentos no período.</td>
+      </tr>
+    `
+  }
+  return rows
+    .map(
+      (row) => `
+      <tr>
+        <td>${formatServiceDate(row.date)}</td>
+        <td>${row.weekday}</td>
+        <td>${row.present}</td>
+        <td>${row.absent}</td>
+      </tr>
+    `,
+    )
+    .join('')
 }
 
 const buildFilters = () => {
@@ -210,8 +323,9 @@ const buildFilters = () => {
 }
 
 const loadReportData = async (filters: { commonId?: number | null; musicianId?: number | null; weekday?: string }) => {
-  setTextLoading(['reports-summary', 'reports-attendance', 'reports-services'])
+  setTextLoading(['reports-summary', 'reports-attendance', 'reports-services', 'reports-period'])
   setTableLoading('reports-table-body', 5)
+  setTableLoading('reports-history-body', 4)
   document.querySelector('.report-chart')?.classList.add('is-loading')
   const currentUser = getCurrentUser()
   const resolvedCommonId = currentUser?.role === 'admin' ? null : currentUser?.common_id ?? null
@@ -228,7 +342,14 @@ const loadReportData = async (filters: { commonId?: number | null; musicianId?: 
   const allowedCommons =
     currentUser?.role === 'admin' ? commons : commons.filter((common) => common.id === commonId)
 
-  const reportRows = buildReport(allowedCommons, musicians, services, attendance, {
+  const activeMusicians = musicians.filter((musician) => musician.status === 'active')
+  const activeIds = new Set(activeMusicians.map((musician) => musician.id))
+  const filteredAttendance = attendance
+    .filter((item) => activeIds.has(item.musician_id))
+    .filter((item) => !filters.musicianId || item.musician_id === filters.musicianId)
+    .filter((item) => !filters.weekday || item.service_weekday === filters.weekday)
+
+  const reportRows = buildReport(allowedCommons, musicians, services, attendance, activeMusicians, {
       commonId,
       musicianId: filters.musicianId ?? null,
       weekday: filters.weekday || '',
@@ -240,7 +361,17 @@ const loadReportData = async (filters: { commonId?: number | null; musicianId?: 
     const filteredServices = filters.weekday
       ? services.filter((service) => service.weekday === filters.weekday)
       : services
-    applySummary(reportRows, filteredServices)
+    applySummary(reportRows, filteredServices, filteredAttendance, activeMusicians)
+    setHtml('reports-history-body', renderHistoryTable(buildHistoryRows(filteredAttendance)))
+    const periodRates = buildPresenceRatesByPeriod(filteredAttendance, activeMusicians.length)
+    if (!filteredAttendance.length) {
+      setText('reports-attendance', 'Sem dados suficientes para calcular médias de presença.')
+    } else {
+      setText(
+        'reports-attendance',
+        `Presença média: ${periodRates.dayAverage}% (dia) • ${periodRates.weekAverage}% (semana) • ${periodRates.monthAverage}% (mês)`,
+      )
+    }
   populateReportFilters(allowedCommons, musicians)
   const reportCommonSelect = document.getElementById('report-common') as HTMLSelectElement | null
   if (reportCommonSelect && currentUser?.role !== 'admin' && commonId) {
@@ -248,8 +379,9 @@ const loadReportData = async (filters: { commonId?: number | null; musicianId?: 
     reportCommonSelect.disabled = true
   }
   } finally {
-    clearTextLoading(['reports-summary', 'reports-attendance', 'reports-services'])
+    clearTextLoading(['reports-summary', 'reports-attendance', 'reports-services', 'reports-period'])
     clearTableLoading('reports-table-body')
+    clearTableLoading('reports-history-body')
     document.querySelector('.report-chart')?.classList.remove('is-loading')
   }
 }

@@ -26,7 +26,6 @@ export const attendanceView = `
         <h4>Músicos da comum</h4>
         <div id="attendance-musicians-list" class="attendance-list"></div>
       </div>
-      <button id="attendance-save" class="primary">Registrar presença</button>
     </div>
 
     <div class="data-card">

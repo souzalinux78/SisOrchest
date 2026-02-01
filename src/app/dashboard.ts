@@ -66,12 +66,18 @@ const renderAttendance = (attendance: Attendance[]) => {
     .join('')
 }
 
-const calculateAttendanceRate = (attendance: Attendance[]) => {
-  if (!attendance.length) return { rate: 0, total: 0, present: 0, absent: 0 }
-  const presentCount = attendance.filter((item) => item.status === 'present').length
-  const absentCount = attendance.filter((item) => item.status !== 'present').length
-  const rate = Math.round((presentCount / attendance.length) * 100)
-  return { rate, total: attendance.length, present: presentCount, absent: absentCount }
+const calculateAttendanceRate = (attendance: Attendance[], activeMusicians: Musician[]) => {
+  if (!activeMusicians.length) return { rate: 0, present: 0, absences: 0 }
+  const activeIds = new Set(activeMusicians.map((musician) => musician.id))
+  const presentIds = new Set(
+    attendance
+      .filter((item) => item.status === 'present' && activeIds.has(item.musician_id))
+      .map((item) => item.musician_id),
+  )
+  const presentCount = presentIds.size
+  const absences = Math.max(activeMusicians.length - presentCount, 0)
+  const rate = Math.round((presentCount / activeMusicians.length) * 100)
+  return { rate, present: presentCount, absences }
 }
 
 const getUpcomingServices = (services: Service[]) => services
@@ -104,7 +110,7 @@ const updateKpis = (
 ) => {
   const activeMusicians = musicians.filter((musician) => musician.status === 'active')
   const upcomingServices = getUpcomingServices(services)
-  const { rate, total, absent } = calculateAttendanceRate(attendance)
+  const { rate, present, absences } = calculateAttendanceRate(attendance, activeMusicians)
   const totalServices = services.length
   const stats = buildMusicianStats(activeMusicians, attendance, totalServices)
   const averageRate = stats.length
@@ -123,10 +129,10 @@ const updateKpis = (
   )
 
   setText('kpi-attendance', `${rate}%`)
-  setText('kpi-attendance-detail', total ? `Base: ${total}` : 'Sem registros')
-  setText('kpi-launches', `${total}`)
+  setText('kpi-attendance-detail', `Presentes: ${present} de ${activeMusicians.length}`)
+  setText('kpi-launches', `${attendance.length}`)
   setText('kpi-launches-detail', 'Total de registros')
-  setText('kpi-absences', `${absent}`)
+  setText('kpi-absences', `${absences}`)
   setText('kpi-absences-detail', 'Ausências contabilizadas')
   setText('kpi-average', `${averageRate}%`)
   setText('kpi-average-detail', 'Presença média')
