@@ -16,6 +16,11 @@ type ReportRow = {
 
 let chartInstance: Chart | null = null
 let currentReportRows: ReportRow[] = []
+let currentReportContext: {
+  attendance: Attendance[]
+  services: Service[]
+  activeTotal: number
+} | null = null
 
 const weekdayOrder = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
 
@@ -136,10 +141,224 @@ const renderChart = (rows: ReportRow[]) => {
 const exportReportPdf = (rows: ReportRow[]) => {
   const doc = new jsPDF()
   doc.setFontSize(16)
-  doc.text('SisOrchest - Relatório de presenças', 14, 20)
+  doc.setTextColor(212, 175, 55)
+  doc.text('SisOrchest - Relatório gerencial de presenças', 14, 18)
+  doc.setTextColor(255, 255, 255)
+
+  const context = currentReportContext
+  const attendance = context?.attendance ?? []
+  const services = context?.services ?? []
+  const activeTotal = context?.activeTotal ?? 0
+
+  const formatPercent = (value: number) => `${Math.round(value)}%`
+  const formatIsoDate = (value?: string | null) => {
+    if (!value) return '--'
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return value
+    return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(date)
+  }
+  const normalizeIsoDate = (value?: string | null) => {
+    if (!value) return ''
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+    if (value.includes('T')) return value.split('T')[0]
+    return value
+  }
+
+  const presentUnique = new Set(
+    attendance.filter((item) => item.status === 'present').map((item) => item.musician_id),
+  ).size
+  const presenceRate = activeTotal ? (presentUnique / activeTotal) * 100 : 0
+  const absences = Math.max(activeTotal - presentUnique, 0)
+  const absenceRate = 100 - presenceRate
 
   autoTable(doc, {
-    startY: 28,
+    startY: 24,
+    head: [['Indicadores gerais']],
+    body: [[
+      `Presença: ${formatPercent(presenceRate)} (${presentUnique} de ${activeTotal} músicos)`,
+    ], [
+      `Faltas: ${formatPercent(absenceRate)} (${absences} de ${activeTotal} músicos)`,
+    ]],
+    theme: 'grid',
+    styles: { textColor: 255, fontSize: 10 },
+    headStyles: { fillColor: [18, 18, 18], textColor: [212, 175, 55] },
+  })
+
+  let currentY = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 34
+
+  const groupByServiceDate = () => {
+    const map = new Map<string, { service?: Service; date: string; records: Attendance[] }>()
+    attendance.forEach((item) => {
+      const dateKey = normalizeIsoDate(item.service_date)
+      const key = `${item.service_id}|${dateKey}`
+      if (!map.has(key)) {
+        map.set(key, {
+          service: services.find((service) => service.id === item.service_id),
+          date: dateKey,
+          records: [],
+        })
+      }
+      map.get(key)?.records.push(item)
+    })
+    return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date))
+  }
+
+  const serviceGroups = groupByServiceDate()
+  if (serviceGroups.length === 1) {
+    const group = serviceGroups[0]
+    const presentCount = new Set(
+      group.records.filter((item) => item.status === 'present').map((item) => item.musician_id),
+    ).size
+    const rate = activeTotal ? (presentCount / activeTotal) * 100 : 0
+    const absRate = 100 - rate
+    currentY += 6
+    doc.setFontSize(12)
+    doc.setTextColor(212, 175, 55)
+    doc.text('Relatório de culto', 14, currentY)
+    doc.setTextColor(255, 255, 255)
+    autoTable(doc, {
+      startY: currentY + 4,
+      head: [['Indicadores do culto']],
+      body: [[
+        `Presença: ${formatPercent(rate)} (${presentCount} de ${activeTotal} músicos)`,
+      ], [
+        `Faltas: ${formatPercent(absRate)} (${Math.max(activeTotal - presentCount, 0)} de ${activeTotal} músicos)`,
+      ]],
+      theme: 'grid',
+      styles: { textColor: 255, fontSize: 10 },
+      headStyles: { fillColor: [18, 18, 18], textColor: [212, 175, 55] },
+    })
+    currentY = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? currentY + 10
+  }
+
+  const buildWeeklySummary = () => {
+    const weeks = new Map<string, { label: string; cultos: { date: string; present: number; rate: number }[] }>()
+    serviceGroups.forEach((group) => {
+      const dateObj = new Date(`${group.date}T00:00:00`)
+      if (Number.isNaN(dateObj.getTime())) return
+      const weekKey = `${dateObj.getFullYear()}-W${Math.ceil(((dateObj.getDate() + (new Date(dateObj.getFullYear(), dateObj.getMonth(), 1).getDay() || 7) - 1) / 7))}`
+      const presentCount = new Set(
+        group.records.filter((item) => item.status === 'present').map((item) => item.musician_id),
+      ).size
+      const rate = activeTotal ? (presentCount / activeTotal) * 100 : 0
+      if (!weeks.has(weekKey)) {
+        weeks.set(weekKey, { label: `Semana ${weekKey}`, cultos: [] })
+      }
+      weeks.get(weekKey)?.cultos.push({ date: group.date, present: presentCount, rate })
+    })
+    return Array.from(weeks.values())
+  }
+
+  const buildMonthlySummary = () => {
+    const months = new Map<string, { label: string; cultos: { date: string; present: number; rate: number }[] }>()
+    serviceGroups.forEach((group) => {
+      const dateObj = new Date(`${group.date}T00:00:00`)
+      if (Number.isNaN(dateObj.getTime())) return
+      const monthKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`
+      const presentCount = new Set(
+        group.records.filter((item) => item.status === 'present').map((item) => item.musician_id),
+      ).size
+      const rate = activeTotal ? (presentCount / activeTotal) * 100 : 0
+      if (!months.has(monthKey)) {
+        months.set(monthKey, { label: `Mês ${monthKey}`, cultos: [] })
+      }
+      months.get(monthKey)?.cultos.push({ date: group.date, present: presentCount, rate })
+    })
+    return Array.from(months.values())
+  }
+
+  const weeklySummary = buildWeeklySummary()
+  if (weeklySummary.length) {
+    weeklySummary.forEach((week) => {
+      currentY = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? currentY
+      doc.setFontSize(12)
+      doc.setTextColor(212, 175, 55)
+      doc.text(`Resumo semanal - ${week.label}`, 14, currentY + 8)
+      doc.setTextColor(255, 255, 255)
+      const averageRate = week.cultos.length
+        ? week.cultos.reduce((sum, item) => sum + item.rate, 0) / week.cultos.length
+        : 0
+      const absenceRate = 100 - averageRate
+      autoTable(doc, {
+        startY: currentY + 12,
+        head: [['Resumo da semana']],
+        body: [[
+          `Total de cultos: ${week.cultos.length}`,
+        ], [
+          `Média de presença: ${formatPercent(averageRate)}`,
+        ], [
+          `Média de faltas: ${formatPercent(absenceRate)}`,
+        ]],
+        theme: 'grid',
+        styles: { textColor: 255, fontSize: 10 },
+        headStyles: { fillColor: [18, 18, 18], textColor: [212, 175, 55] },
+      })
+      autoTable(doc, {
+        startY: (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? currentY + 24,
+        head: [['Data', 'Presentes', 'Presença %', 'Faltas %']],
+        body: week.cultos.map((culto) => {
+          const rate = culto.rate
+          return [
+            formatIsoDate(culto.date),
+            `${culto.present}/${activeTotal}`,
+            formatPercent(rate),
+            formatPercent(100 - rate),
+          ]
+        }),
+        theme: 'grid',
+        styles: { textColor: 255, fontSize: 9 },
+        headStyles: { fillColor: [18, 18, 18], textColor: [212, 175, 55] },
+      })
+    })
+  }
+
+  const monthlySummary = buildMonthlySummary()
+  if (monthlySummary.length) {
+    monthlySummary.forEach((month) => {
+      currentY = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? currentY
+      doc.setFontSize(12)
+      doc.setTextColor(212, 175, 55)
+      doc.text(`Resumo mensal - ${month.label}`, 14, currentY + 8)
+      doc.setTextColor(255, 255, 255)
+      const averageRate = month.cultos.length
+        ? month.cultos.reduce((sum, item) => sum + item.rate, 0) / month.cultos.length
+        : 0
+      const absenceRate = 100 - averageRate
+      autoTable(doc, {
+        startY: currentY + 12,
+        head: [['Resumo do mês']],
+        body: [[
+          `Total de cultos: ${month.cultos.length}`,
+        ], [
+          `Média de presença: ${formatPercent(averageRate)}`,
+        ], [
+          `Média de faltas: ${formatPercent(absenceRate)}`,
+        ]],
+        theme: 'grid',
+        styles: { textColor: 255, fontSize: 10 },
+        headStyles: { fillColor: [18, 18, 18], textColor: [212, 175, 55] },
+      })
+      autoTable(doc, {
+        startY: (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? currentY + 24,
+        head: [['Dia do culto', 'Presença %', 'Faltas %', 'Presentes/Total']],
+        body: month.cultos.map((culto) => {
+          const rate = culto.rate
+          return [
+            formatIsoDate(culto.date),
+            formatPercent(rate),
+            formatPercent(100 - rate),
+            `${culto.present}/${activeTotal}`,
+          ]
+        }),
+        theme: 'grid',
+        styles: { textColor: 255, fontSize: 9 },
+        headStyles: { fillColor: [18, 18, 18], textColor: [212, 175, 55] },
+      })
+    })
+  }
+
+  autoTable(doc, {
+    startY: (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 28,
     head: [['Músico', 'Comum', 'Presenças', 'Total cultos', 'Percentual']],
     body: rows.map((row) => [
       row.musicianName,
@@ -354,6 +573,11 @@ const loadReportData = async (filters: { commonId?: number | null; musicianId?: 
     })
 
     currentReportRows = reportRows
+    currentReportContext = {
+      attendance: filteredAttendance,
+      services: filteredServices,
+      activeTotal: activeMusicians.length,
+    }
     setHtml('reports-table-body', renderReportTable(reportRows))
     renderChart(reportRows)
     const filteredServices = filters.weekday
