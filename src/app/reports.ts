@@ -45,7 +45,7 @@ const renderReportTable = (rows: ReportRow[]) => {
 
 const buildReport = (
   commons: Common[],
-  musicians: Musician[],
+  _musicians: Musician[],
   services: Service[],
   attendance: Attendance[],
   activeMusicians: Musician[],
@@ -180,12 +180,10 @@ const applySummary = (
 ) => {
   const totalMusicians = rows.length
   const totalAttendance = rows.reduce((sum, row) => sum + row.attendanceCount, 0)
-  const totalServices = services.length
   const activeTotal = activeMusicians.length
   const presentUnique = new Set(
     attendance.filter((item) => item.status === 'present').map((item) => item.musician_id),
   ).size
-  const averageRate = activeTotal ? Math.round((presentUnique / activeTotal) * 100) : 0
 
   const nextService = services
     .slice()
