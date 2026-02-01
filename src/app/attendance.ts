@@ -45,6 +45,14 @@ const formatBrDate = (value?: string | null) => {
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(date)
 }
 
+const normalizeIsoDate = (value?: string | null) => {
+  if (!value) return ''
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+  if (value.includes('T')) return value.split('T')[0]
+  const parsed = parseBrDateToIso(value)
+  return parsed || ''
+}
+
 const parseBrDateToIso = (value?: string | null) => {
   if (!value) return ''
   const trimmed = value.trim()
@@ -74,15 +82,19 @@ const calculateServiceDate = (weekday?: string | null) => {
 
 const applyExistingToChecklist = (serviceId?: number | null, serviceDate?: string) => {
   if (!serviceId || !serviceDate) return
+  const normalizedDate = normalizeIsoDate(serviceDate)
   const rows = document.querySelectorAll<HTMLLabelElement>('.attendance-item')
   rows.forEach((row) => {
     const checkbox = row.querySelector<HTMLInputElement>('input[type="checkbox"]')
     if (!checkbox) return
     checkbox.checked = false
     const existing = cachedAttendance.find(
-      (item) => item.service_id === serviceId && item.musician_id === Number(checkbox.value),
+      (item) =>
+        item.service_id === serviceId &&
+        item.musician_id === Number(checkbox.value) &&
+        normalizeIsoDate(item.service_date) === normalizedDate,
     )
-    if (!existing || existing.service_date !== serviceDate) return
+    if (!existing) return
     checkbox.checked = existing.status === 'present'
   })
 }
@@ -94,9 +106,11 @@ const renderExistingAttendance = (serviceId?: number | null, serviceDate?: strin
     container.innerHTML = ''
     return
   }
+  const normalizedDate = normalizeIsoDate(serviceDate)
 
   const existing = cachedAttendance.filter(
-    (item) => item.service_id === serviceId && item.service_date === serviceDate,
+    (item) =>
+      item.service_id === serviceId && normalizeIsoDate(item.service_date) === normalizedDate,
   )
   if (!existing.length) {
     container.innerHTML = ''
@@ -119,7 +133,7 @@ const renderExistingAttendance = (serviceId?: number | null, serviceDate?: strin
         .join('')}
     </ul>
   `
-  applyExistingToChecklist(serviceId, serviceDate)
+  applyExistingToChecklist(serviceId, normalizedDate)
 }
 
 const setAttendanceSelects = (musicians: Musician[], services: Service[]) => {
@@ -275,7 +289,7 @@ export const setupAttendanceForm = () => {
       (record) =>
         record.service_id === serviceId &&
         record.musician_id === musicianId &&
-        record.service_date === serviceDate,
+        normalizeIsoDate(record.service_date) === serviceDate,
     )
     const nextStatus = target.checked ? 'present' : 'absent'
 
