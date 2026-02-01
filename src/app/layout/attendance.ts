@@ -17,9 +17,11 @@ export const attendanceView = `
         </label>
         <label>
           <span>Data do culto</span>
-          <input id="attendance-date" type="date" readonly />
+          <input id="attendance-date" type="date" />
         </label>
       </div>
+      <div id="attendance-warning" class="data-status"></div>
+      <div id="attendance-existing" class="attendance-existing"></div>
       <div class="attendance-checklist">
         <h4>Músicos da comum</h4>
         <div id="attendance-musicians-list" class="attendance-list"></div>

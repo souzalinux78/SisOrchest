@@ -75,6 +75,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+  updateMusician: (id: number, payload: Omit<Musician, 'id' | 'common_id'>) =>
+    request<{ message: string }>(`/musicians/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
   deleteMusician: (id: number) =>
     request<{ message: string }>(`/musicians/${id}`, { method: 'DELETE' }),
   getCommons: () => request<Common[]>('/commons'),

@@ -1,6 +1,6 @@
 import { api } from './api'
 import type { Service } from './api'
-import { clearTableLoading, setButtonLoading, setHtml, setTableLoading, setText } from './dom'
+import { clearTableLoading, requireConfirmClick, setButtonLoading, setHtml, setTableLoading, setText } from './dom'
 import { loadAttendanceLookups } from './attendance'
 import { getCurrentUser } from './session'
 
@@ -98,6 +98,7 @@ export const setupServicesForm = () => {
     const action = target.dataset.action
     const id = Number(target.dataset.id)
     if (action !== 'delete' || !id) return
+    if (!requireConfirmClick(target as HTMLButtonElement | null, 'Confirmar')) return
 
     setText('services-status', 'Removendo culto...')
     setButtonLoading(target as HTMLButtonElement | null, true, 'Removendo...')

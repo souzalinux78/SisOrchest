@@ -1,8 +1,10 @@
 import { api } from './api'
 import type { Musician } from './api'
-import { clearTableLoading, setButtonLoading, setHtml, setTableLoading, setText } from './dom'
+import { clearTableLoading, requireConfirmClick, setButtonLoading, setHtml, setTableLoading, setText } from './dom'
 import { loadAttendanceLookups } from './attendance'
 import { getCurrentUser } from './session'
+
+let cachedMusicians: Musician[] = []
 
 const renderMusiciansTable = (musicians: Musician[]) => {
   if (!musicians.length) {
@@ -19,8 +21,15 @@ const renderMusiciansTable = (musicians: Musician[]) => {
       <tr>
         <td>${musician.name}</td>
         <td>${musician.instrument}</td>
-        <td>${musician.status === 'active' ? 'Ativo' : 'Inativo'}</td>
         <td>
+          <span class="status-badge ${musician.status === 'active' ? 'is-active' : 'is-inactive'}">
+            ${musician.status === 'active' ? 'Ativo' : 'Inativo'}
+          </span>
+        </td>
+        <td>
+          <button class="table-action" data-action="toggle" data-id="${musician.id}">
+            ${musician.status === 'active' ? 'Inativar' : 'Ativar'}
+          </button>
           <button class="table-action" data-action="delete" data-id="${musician.id}">
             Remover
           </button>
@@ -38,6 +47,7 @@ export const loadMusiciansList = async (commonId?: number | null) => {
     const resolvedCommonId =
       commonId ?? (currentUser?.role === 'admin' ? null : currentUser?.common_id ?? null)
     const musicians = await api.getMusicians({ common_id: resolvedCommonId ?? undefined })
+    cachedMusicians = musicians
     setHtml('musicians-table-body', renderMusiciansTable(musicians))
     loadAttendanceLookups()
     setText('musicians-status', 'Músicos carregados com sucesso.')
@@ -109,6 +119,7 @@ export const setupMusiciansForm = () => {
     const action = target.dataset.action
     const id = Number(target.dataset.id)
     if (action !== 'delete' || !id) return
+    if (!requireConfirmClick(target as HTMLButtonElement | null, 'Confirmar')) return
 
     setText('musicians-status', 'Removendo músico...')
     setButtonLoading(target as HTMLButtonElement | null, true, 'Removendo...')
@@ -124,7 +135,40 @@ export const setupMusiciansForm = () => {
     }
   })
 
+  tableBody?.addEventListener('click', async (event) => {
+    const target = event.target as HTMLElement | null
+    if (!target) return
+    const action = target.dataset.action
+    const id = Number(target.dataset.id)
+    if (action !== 'toggle' || !id) return
+    if (!requireConfirmClick(target as HTMLButtonElement | null, 'Confirmar')) return
+
+    const musician = cachedMusicians.find((item) => item.id === id)
+    if (!musician) return
+
+    const nextStatus = musician.status === 'active' ? 'inactive' : 'active'
+    setText('musicians-status', `Atualizando status para ${nextStatus === 'active' ? 'ativo' : 'inativo'}...`)
+    setButtonLoading(target as HTMLButtonElement | null, true, 'Atualizando...')
+    try {
+      await api.updateMusician(musician.id, {
+        name: musician.name,
+        instrument: musician.instrument,
+        phone: musician.phone ?? null,
+        email: musician.email ?? null,
+        status: nextStatus,
+      })
+      await loadMusiciansList()
+      loadAttendanceLookups()
+      setText('musicians-status', 'Status do músico atualizado.')
+    } catch (error) {
+      setText('musicians-status', error instanceof Error ? error.message : 'Erro ao atualizar status.')
+    } finally {
+      setButtonLoading(target as HTMLButtonElement | null, false)
+    }
+  })
+
   csvButton?.addEventListener('click', async () => {
+    if (!requireConfirmClick(csvButton as HTMLButtonElement | null, 'Confirmar')) return
     const file = csvInput?.files?.[0]
     if (!file) {
       setText('musicians-status', 'Selecione um arquivo CSV.')
@@ -159,20 +203,57 @@ export const setupMusiciansForm = () => {
     setText('musicians-status', 'Importando músicos...')
     setButtonLoading(csvButton as HTMLButtonElement | null, true, 'Importando...')
     try {
+      const existingMusicians = await api.getMusicians({ common_id: commonId })
+      const existingMap = new Map(
+        existingMusicians.map((musician) => [
+          `${musician.name.trim().toLowerCase()}|${musician.instrument.trim().toLowerCase()}`,
+          musician,
+        ]),
+      )
+      const seenKeys = new Set<string>()
+      let created = 0
+      let updated = 0
+      let ignored = 0
+
       for (const line of dataLines) {
-        const [name, instrument, phone, email, status] = line.split(delimiter).map((v) => v.trim())
-        if (!name || !instrument) continue
+        const [nameRaw, instrumentRaw, phone, email, status] = line.split(delimiter).map((v) => v.trim())
+        if (!nameRaw || !instrumentRaw) {
+          ignored += 1
+          continue
+        }
+        const key = `${nameRaw.toLowerCase()}|${instrumentRaw.toLowerCase()}`
+        if (seenKeys.has(key)) {
+          ignored += 1
+          continue
+        }
+        seenKeys.add(key)
+
+        const existing = existingMap.get(key)
+        if (existing) {
+          await api.updateMusician(existing.id, {
+            name: nameRaw,
+            instrument: instrumentRaw,
+            phone: phone || null,
+            email: email || null,
+            status: status || existing.status || 'active',
+          })
+          updated += 1
+          continue
+        }
+
         await api.createMusician({
-          name,
-          instrument,
+          name: nameRaw,
+          instrument: instrumentRaw,
           phone: phone || null,
           email: email || null,
           status: status || 'active',
           common_id: commonId,
         })
+        created += 1
       }
+
       await loadMusiciansList()
-      setText('musicians-status', 'Importação concluída.')
+      setText('musicians-status', `Importação concluída. Atualizados: ${updated}. Criados: ${created}. Ignorados: ${ignored}.`)
       if (csvInput) csvInput.value = ''
     } catch (error) {
       setText('musicians-status', error instanceof Error ? error.message : 'Erro ao importar CSV.')

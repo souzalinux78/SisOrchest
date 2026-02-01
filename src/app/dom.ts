@@ -29,6 +29,39 @@ export const setButtonLoading = (button: HTMLButtonElement | null, isLoading: bo
   }
 }
 
+export const requireConfirmClick = (button: HTMLButtonElement | null, label = 'Confirmar', timeoutMs = 2500) => {
+  if (!button) return false
+  const now = Date.now()
+  const confirmUntil = Number(button.dataset.confirmUntil ?? 0)
+  if (confirmUntil && now < confirmUntil) {
+    delete button.dataset.confirmUntil
+    button.classList.remove('is-confirm')
+    if (button.dataset.originalLabel) {
+      button.textContent = button.dataset.originalLabel
+      delete button.dataset.originalLabel
+    }
+    return true
+  }
+
+  if (!button.dataset.originalLabel) {
+    button.dataset.originalLabel = button.textContent ?? ''
+  }
+  button.textContent = label
+  button.classList.add('is-confirm')
+  button.dataset.confirmUntil = String(now + timeoutMs)
+  window.setTimeout(() => {
+    if (button.dataset.confirmUntil && Date.now() >= Number(button.dataset.confirmUntil)) {
+      delete button.dataset.confirmUntil
+      button.classList.remove('is-confirm')
+      if (button.dataset.originalLabel) {
+        button.textContent = button.dataset.originalLabel
+        delete button.dataset.originalLabel
+      }
+    }
+  }, timeoutMs + 50)
+  return false
+}
+
 export const setTextLoading = (ids: string[]) => {
   ids.forEach((id) => {
     const element = document.getElementById(id)

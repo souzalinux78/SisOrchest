@@ -48,6 +48,10 @@ export const reportsView = `
         <h3>Agenda</h3>
         <p id="reports-services">Aguardando dados de cultos.</p>
       </div>
+      <div class="report-card">
+        <h3>Período</h3>
+        <p id="reports-period">Aguardando dados do período.</p>
+      </div>
     </div>
 
     <div class="report-chart">
@@ -67,6 +71,21 @@ export const reportsView = `
           </tr>
         </thead>
         <tbody id="reports-table-body"></tbody>
+      </table>
+    </div>
+
+    <div class="data-card">
+      <h3>Histórico por data</h3>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Dia</th>
+            <th>Presenças</th>
+            <th>Faltas</th>
+          </tr>
+        </thead>
+        <tbody id="reports-history-body"></tbody>
       </table>
     </div>
   </section>

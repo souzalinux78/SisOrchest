@@ -1,6 +1,6 @@
 import { api } from './api'
 import type { Common } from './api'
-import { clearTableLoading, setButtonLoading, setHtml, setTableLoading, setText } from './dom'
+import { clearTableLoading, requireConfirmClick, setButtonLoading, setHtml, setTableLoading, setText } from './dom'
 import { refreshCommonSelects } from './selectors'
 
 const renderCommonsTable = (commons: Common[]) => {
@@ -74,6 +74,7 @@ export const setupCommonsForm = () => {
     const action = target.dataset.action
     const id = Number(target.dataset.id)
     if (action !== 'delete' || !id) return
+    if (!requireConfirmClick(target as HTMLButtonElement | null, 'Confirmar')) return
 
     setText('commons-status', 'Removendo comum...')
     setButtonLoading(target as HTMLButtonElement | null, true, 'Removendo...')
