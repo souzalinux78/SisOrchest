@@ -189,23 +189,30 @@ const exportReportPdf = (rows: ReportRow[]) => {
     return `Gerado em ${generatedAt} • ${getPeriodLabel()}`
   }
 
-  const drawHeader = () => {
+  const renderHeader = () => {
+    const titleY = 12
+    const commonY = 18
     doc.setTextColor(...colors.gold)
     doc.setFontSize(14)
-    doc.text('SisOrchest – Relatório Gerencial de Presenças', 14, 12)
+    doc.text('SisOrchest – Relatório Gerencial de Presenças', 14, titleY)
     doc.setFontSize(9)
     doc.setTextColor(...colors.muted)
-    doc.text(commonName, 14, 18)
+    doc.text(commonName, 14, commonY)
+    return 26
   }
 
-  const drawFooter = () => {
+  const renderFooter = () => {
     doc.setFontSize(8)
     doc.setTextColor(...colors.muted)
     doc.text(getFooterLabel(), 14, pageHeight - 10)
   }
 
+  const headerBottomY = renderHeader()
+  renderFooter()
+
   const baseTable: UserOptions = {
     theme: 'grid',
+    margin: { top: headerBottomY, bottom: 14 },
     styles: {
       textColor: colors.text,
       fontSize: 9,
@@ -223,8 +230,8 @@ const exportReportPdf = (rows: ReportRow[]) => {
       fillColor: colors.surface,
     },
     didDrawPage: () => {
-      drawHeader()
-      drawFooter()
+      renderHeader()
+      renderFooter()
     },
   }
 
@@ -233,12 +240,9 @@ const exportReportPdf = (rows: ReportRow[]) => {
     autoTable(doc, options)
   }
 
-  drawHeader()
-  drawFooter()
-
   if (!attendance.length || !activeTotal) {
     safeAutoTable({
-      startY: 26,
+      startY: headerBottomY,
       head: [['Resumo geral']],
       body: [['Nenhum registro encontrado para este período.']],
       ...baseTable,
@@ -276,7 +280,7 @@ const exportReportPdf = (rows: ReportRow[]) => {
     : 0
 
   safeAutoTable({
-    startY: 26,
+    startY: headerBottomY,
     head: [['Resumo geral']],
     body: [[
       `Músicos ativos: ${activeTotal}`,
@@ -291,7 +295,7 @@ const exportReportPdf = (rows: ReportRow[]) => {
   })
 
   const nextY = () =>
-    ((doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 32) + 6
+    ((doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? headerBottomY) + 6
 
   const rankingRows = rows
     .map((row) => ({
