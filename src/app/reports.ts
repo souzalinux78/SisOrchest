@@ -405,15 +405,6 @@ const exportReportPdf = (rows: ReportRow[]) => {
   }
 
   const weeklySummary = buildWeeklySummary()
-  const weekdayByKey = new Map<string, string | null>(
-    serviceGroups.map((group) => [
-      `${group.service?.id ?? group.records[0]?.service_id ?? 0}|${group.date}`,
-      group.weekday ?? null,
-    ]),
-  )
-
-  const getWeekdayLabel = (serviceId: number, date: string) =>
-    weekdayByKey.get(`${serviceId}|${date}`) ?? null
 
   if (weeklySummary.length) {
     weeklySummary.forEach((week) => {
