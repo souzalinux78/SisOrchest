@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { Attendance, Musician, Service } from './api'
+import type { Attendance, AttendanceVisitors, Musician, Service } from './api'
 import { clearTableLoading, formatDate, formatDateTime, formatServiceSchedule, setHtml, setTableLoading, setText } from './dom'
 import { getCurrentUser } from './session'
 
@@ -39,6 +39,7 @@ const weekdayOrder = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta
 let cachedAttendance: Attendance[] = []
 let originalStatusMap = new Map<number, 'present' | 'absent'>()
 let hasChanges = false
+let originalVisitorsCount = 0
 
 const formatBrDate = (value?: string | null) => {
   if (!value) return ''
@@ -208,6 +209,25 @@ const refreshAttendanceCache = async () => {
   return attendance
 }
 
+const loadVisitorsCount = async (serviceId: number, serviceDate: string) => {
+  const visitorsInput = document.getElementById('attendance-visitors') as HTMLInputElement | null
+  if (!visitorsInput) return
+  if (!serviceId || !serviceDate) {
+    visitorsInput.value = '0'
+    originalVisitorsCount = 0
+    return
+  }
+  try {
+    const rows = await api.getAttendanceVisitors({ service_id: serviceId, service_date: serviceDate })
+    const count = rows?.[0]?.visitors_count ?? 0
+    visitorsInput.value = String(count)
+    originalVisitorsCount = count
+  } catch {
+    visitorsInput.value = '0'
+    originalVisitorsCount = 0
+  }
+}
+
 export const loadAttendanceList = async (commonId?: number | null) => {
   setTableLoading('attendance-table-body', 5)
   try {
@@ -239,6 +259,7 @@ export const loadAttendanceLookups = async () => {
     const dateInput = document.getElementById('attendance-date') as HTMLInputElement | null
     const isoDate = parseBrDateToIso(dateInput?.value ?? '')
     renderExistingAttendance(Number(serviceSelect?.value ?? 0), isoDate)
+    await loadVisitorsCount(Number(serviceSelect?.value ?? 0), isoDate)
   } catch (error) {
     setText('attendance-status-text', error instanceof Error ? error.message : 'Erro ao carregar opções.')
   }
@@ -250,6 +271,7 @@ export const setupAttendanceForm = () => {
   const dateInput = document.getElementById('attendance-date') as HTMLInputElement | null
   const warning = document.getElementById('attendance-warning')
   const listContainer = document.getElementById('attendance-musicians-list')
+  const visitorsInput = document.getElementById('attendance-visitors') as HTMLInputElement | null
 
   serviceSelect?.addEventListener('change', async () => {
     try {
@@ -265,6 +287,7 @@ export const setupAttendanceForm = () => {
       await refreshAttendanceCache()
       const isoDate = parseBrDateToIso(dateInput?.value ?? '')
       renderExistingAttendance(Number(serviceSelect.value), isoDate)
+      await loadVisitorsCount(Number(serviceSelect.value), isoDate)
     } catch {
       if (dateInput) dateInput.value = ''
     }
@@ -285,6 +308,7 @@ export const setupAttendanceForm = () => {
     }
     refreshAttendanceCache().then(() => {
       renderExistingAttendance(Number(serviceSelect?.value ?? 0), isoDate)
+      loadVisitorsCount(Number(serviceSelect?.value ?? 0), isoDate)
     })
   })
 
@@ -300,6 +324,21 @@ export const setupAttendanceForm = () => {
     const isoDate = parseBrDateToIso(dateInput.value)
     if (!isoDate) {
       setText('attendance-status-text', 'Data inválida. Use o formato DD/MM/AAAA.')
+    }
+  })
+
+  visitorsInput?.addEventListener('input', () => {
+    if (!visitorsInput) return
+    const digits = visitorsInput.value.replace(/\D/g, '')
+    visitorsInput.value = digits ? String(Number(digits)) : '0'
+    const currentValue = Number(visitorsInput.value || 0)
+    if (currentValue < 0) {
+      visitorsInput.value = '0'
+    }
+    if (currentValue !== originalVisitorsCount) {
+      hasChanges = true
+      if (saveButton) saveButton.disabled = false
+      setText('attendance-status-text', 'Alterações pendentes. Clique em "Salvar alterações".')
     }
   })
 
@@ -341,6 +380,7 @@ export const setupAttendanceForm = () => {
     const serviceDate = parseBrDateToIso(dateInput?.value ?? '')
     const serviceWeekday =
       serviceSelect?.selectedOptions[0]?.textContent?.split(' às ')[0]?.trim() ?? ''
+    const visitorsCount = Number(visitorsInput?.value ?? 0)
 
     if (!serviceId || !serviceDate || !serviceWeekday) {
       setText('attendance-status-text', 'Selecione um culto válido antes de salvar.')
@@ -361,7 +401,8 @@ export const setupAttendanceForm = () => {
       })
       .filter((item): item is { musicianId: number; currentStatus: 'present' | 'absent'; originalStatus: 'present' | 'absent' } => Boolean(item))
 
-    if (!changes.length || !hasChanges) {
+    const visitorsChanged = visitorsCount !== originalVisitorsCount
+    if ((!changes.length && !visitorsChanged) || !hasChanges) {
       setText('attendance-status-text', 'Nenhuma alteração para salvar.')
       return
     }
@@ -379,19 +420,28 @@ export const setupAttendanceForm = () => {
     setText('attendance-status-text', 'Salvando alterações...')
     saveButton.disabled = true
     try {
-      await Promise.all(
-        changes.map((change) =>
-          api.registerAttendance({
-            service_id: serviceId,
-            musician_id: change.musicianId,
-            status: change.currentStatus,
-            service_weekday: serviceWeekday,
-            service_date: serviceDate,
-          }),
-        ),
+      const requests = changes.map((change) =>
+        api.registerAttendance({
+          service_id: serviceId,
+          musician_id: change.musicianId,
+          status: change.currentStatus,
+          service_weekday: serviceWeekday,
+          service_date: serviceDate,
+        }),
       )
+      if (visitorsChanged) {
+        requests.push(
+          api.saveAttendanceVisitors({
+            service_id: serviceId,
+            service_date: serviceDate,
+            visitors_count: Math.max(visitorsCount, 0),
+          }),
+        )
+      }
+      await Promise.all(requests)
       await loadAttendanceList()
       renderExistingAttendance(serviceId, serviceDate)
+      await loadVisitorsCount(serviceId, serviceDate)
       hasChanges = false
       setText('attendance-status-text', 'Alterações salvas com sucesso.')
       window.dispatchEvent(new CustomEvent('attendance:updated'))

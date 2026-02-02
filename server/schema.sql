@@ -86,3 +86,17 @@ CREATE TABLE IF NOT EXISTS attendance (
 
 CREATE INDEX idx_attendance_service ON attendance (service_id);
 CREATE INDEX idx_attendance_service_date ON attendance (service_date);
+
+CREATE TABLE IF NOT EXISTS attendance_visitors (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  service_id BIGINT UNSIGNED NOT NULL,
+  service_date DATE NOT NULL,
+  visitors_count INT UNSIGNED NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_attendance_visitors_service FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE CASCADE,
+  CONSTRAINT uq_attendance_visitors UNIQUE (service_id, service_date)
+);
+
+CREATE INDEX idx_attendance_visitors_service ON attendance_visitors (service_id);
+CREATE INDEX idx_attendance_visitors_date ON attendance_visitors (service_date);

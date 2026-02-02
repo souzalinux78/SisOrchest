@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { Attendance, Common, Musician, Service } from './api'
+import type { Attendance, AttendanceVisitors, Common, Musician, Service } from './api'
 import { clearTableLoading, clearTextLoading, formatServiceSchedule, requireConfirmClick, setButtonLoading, setHtml, setTableLoading, setText, setTextLoading } from './dom'
 import { getCurrentUser } from './session'
 import Chart from 'chart.js/auto'
@@ -21,6 +21,7 @@ let currentReportContext: {
   attendance: Attendance[]
   services: Service[]
   activeTotal: number
+  visitors: AttendanceVisitors[]
 } | null = null
 
 const weekdayOrder = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
@@ -154,6 +155,7 @@ const exportReportPdf = (rows: ReportRow[]) => {
   const attendance = context?.attendance ?? []
   const services = context?.services ?? []
   const activeTotal = context?.activeTotal ?? 0
+  const visitors = context?.visitors ?? []
   const commonName = rows[0]?.commonName ?? 'Comum'
 
   const formatPercent = (value: number) => `${Math.round(value)}%`
@@ -168,6 +170,15 @@ const exportReportPdf = (rows: ReportRow[]) => {
     if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
     if (value.includes('T')) return value.split('T')[0]
     return value
+  }
+
+  const getVisitorsCount = (serviceId: number, date: string) => {
+    const normalizedDate = normalizeIsoDate(date)
+    const match = visitors.find(
+      (item) =>
+        item.service_id === serviceId && normalizeIsoDate(item.service_date) === normalizedDate,
+    )
+    return match?.visitors_count ?? 0
   }
 
   const getPeriodLabel = () => {
@@ -312,6 +323,7 @@ const exportReportPdf = (rows: ReportRow[]) => {
       group.records.filter((item) => item.status === 'present').map((item) => item.musician_id),
     ).size
     const rate = activeTotal ? (presentCount / activeTotal) * 100 : 0
+    const visitorsCount = getVisitorsCount(group.service?.id ?? 0, group.date)
     safeAutoTable({
       startY: nextY(),
       head: [['Relatório por culto']],
@@ -324,7 +336,11 @@ const exportReportPdf = (rows: ReportRow[]) => {
       ], [
         `Presentes: ${presentCount}`,
       ], [
+        `Visitantes: ${visitorsCount} (não entram na métrica da comum)`,
+      ], [
         `Faltas: ${Math.max(activeTotal - presentCount, 0)}`,
+      ], [
+        `Total geral no culto: ${presentCount + visitorsCount}`,
       ], [
         `Presença: ${formatPercent(rate)} (${presentCount}/${activeTotal})`,
       ], [
@@ -350,7 +366,7 @@ const exportReportPdf = (rows: ReportRow[]) => {
   const buildWeeklySummary = () => {
     const weeks = new Map<
       string,
-      { label: string; cultos: { date: string; present: number; rate: number }[] }
+      { label: string; cultos: { date: string; serviceId: number; present: number; rate: number }[] }
     >()
     serviceGroups.forEach((group) => {
       const dateObj = new Date(`${group.date}T00:00:00`)
@@ -363,7 +379,12 @@ const exportReportPdf = (rows: ReportRow[]) => {
       if (!weeks.has(weekKey)) {
         weeks.set(weekKey, { label: `Semana ${weekKey}`, cultos: [] })
       }
-      weeks.get(weekKey)?.cultos.push({ date: group.date, present: presentCount, rate })
+      weeks.get(weekKey)?.cultos.push({
+        date: group.date,
+        serviceId: group.service?.id ?? group.records[0]?.service_id ?? 0,
+        present: presentCount,
+        rate,
+      })
     })
     return Array.from(weeks.values())
   }
@@ -388,12 +409,14 @@ const exportReportPdf = (rows: ReportRow[]) => {
       })
       safeAutoTable({
         startY: nextY(),
-        head: [['Data', 'Presentes', 'Total músicos', 'Presença %', 'Faltas %']],
+        head: [['Data', 'Presentes', 'Visitantes', 'Total músicos', 'Presença %', 'Faltas %']],
         body: week.cultos.map((culto) => {
           const rate = culto.rate
+          const visitorsCount = getVisitorsCount(culto.serviceId, culto.date)
           return [
             formatIsoDate(culto.date),
             String(culto.present),
+            String(visitorsCount),
             String(activeTotal),
             formatPercent(rate),
             formatPercent(100 - rate),
@@ -407,7 +430,7 @@ const exportReportPdf = (rows: ReportRow[]) => {
   const buildMonthlySummary = () => {
     const months = new Map<
       string,
-      { label: string; cultos: { date: string; present: number; rate: number }[] }
+      { label: string; cultos: { date: string; serviceId: number; present: number; rate: number }[] }
     >()
     serviceGroups.forEach((group) => {
       const dateObj = new Date(`${group.date}T00:00:00`)
@@ -420,7 +443,12 @@ const exportReportPdf = (rows: ReportRow[]) => {
       if (!months.has(monthKey)) {
         months.set(monthKey, { label: `Mês ${monthKey}`, cultos: [] })
       }
-      months.get(monthKey)?.cultos.push({ date: group.date, present: presentCount, rate })
+      months.get(monthKey)?.cultos.push({
+        date: group.date,
+        serviceId: group.service?.id ?? group.records[0]?.service_id ?? 0,
+        present: presentCount,
+        rate,
+      })
     })
     return Array.from(months.values())
   }
@@ -445,12 +473,14 @@ const exportReportPdf = (rows: ReportRow[]) => {
       })
       safeAutoTable({
         startY: nextY(),
-        head: [['Dia do culto', 'Presentes', 'Total músicos', 'Presença %', 'Faltas %']],
+        head: [['Dia do culto', 'Presentes', 'Visitantes', 'Total músicos', 'Presença %', 'Faltas %']],
         body: month.cultos.map((culto) => {
           const rate = culto.rate
+          const visitorsCount = getVisitorsCount(culto.serviceId, culto.date)
           return [
             formatIsoDate(culto.date),
             String(culto.present),
+            String(visitorsCount),
             String(activeTotal),
             formatPercent(rate),
             formatPercent(100 - rate),
@@ -670,11 +700,12 @@ const loadReportData = async (filters: { commonId?: number | null; musicianId?: 
   const commonId = resolvedCommonId ?? filters.commonId ?? null
 
   try {
-  const [commons, musicians, services, attendance] = await Promise.all([
+  const [commons, musicians, services, attendance, visitors] = await Promise.all([
       api.getCommons(),
       api.getMusicians({ common_id: commonId ?? undefined }),
       api.getServices({ common_id: commonId ?? undefined }),
       api.getAttendance({ common_id: commonId ?? undefined }),
+    api.getAttendanceVisitors({ common_id: commonId ?? undefined }),
     ])
 
   const allowedCommons =
@@ -701,6 +732,7 @@ const loadReportData = async (filters: { commonId?: number | null; musicianId?: 
       attendance: filteredAttendance,
       services: filteredServices,
       activeTotal: activeMusicians.length,
+      visitors,
     }
     setHtml('reports-table-body', renderReportTable(reportRows))
     renderChart(reportRows)

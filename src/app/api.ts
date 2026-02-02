@@ -45,6 +45,12 @@ export type Attendance = {
   recorded_at: string
 }
 
+export type AttendanceVisitors = {
+  service_id: number
+  service_date: string
+  visitors_count: number
+}
+
 const request = async <T>(path: string, options?: RequestInit): Promise<T> => {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: { 'Content-Type': 'application/json' },
@@ -137,6 +143,19 @@ export const api = {
     service_date: string
   }) =>
     request<{ message: string }>('/attendance', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  getAttendanceVisitors: (params: { service_id?: number; service_date?: string; common_id?: number | null }) => {
+    const queryParams = new URLSearchParams()
+    if (params.service_id) queryParams.set('service_id', String(params.service_id))
+    if (params.service_date) queryParams.set('service_date', params.service_date)
+    if (params.common_id) queryParams.set('common_id', String(params.common_id))
+    const query = queryParams.toString()
+    return request<AttendanceVisitors[]>(`/attendance/visitors${query ? `?${query}` : ''}`)
+  },
+  saveAttendanceVisitors: (payload: { service_id: number; service_date: string; visitors_count: number }) =>
+    request<{ message: string }>('/attendance/visitors', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
