@@ -69,12 +69,12 @@ const parseBrDateToIso = (value?: string | null) => {
 
 const applyDateMask = (value: string) => {
   const digits = value.replace(/\D/g, '').slice(0, 8)
-  const parts = []
-  if (digits.length >= 2) parts.push(digits.slice(0, 2))
-  if (digits.length >= 4) parts.push(digits.slice(2, 4))
-  if (digits.length > 4) parts.push(digits.slice(4))
-  if (digits.length < 2) parts.push(digits)
-  return parts.filter(Boolean).join('/')
+  if (!digits) return ''
+  if (digits.length <= 2) return digits
+  if (digits.length <= 4) {
+    return `${digits.slice(0, 2)}/${digits.slice(2)}`
+  }
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
 }
 
 const calculateServiceDate = (weekday?: string | null) => {
