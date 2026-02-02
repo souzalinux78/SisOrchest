@@ -432,24 +432,6 @@ const exportReportPdf = (rows: ReportRow[]) => {
         ]],
         ...baseTable,
       })
-      safeAutoTable({
-        startY: nextY(),
-        head: [['Data', 'Presentes', 'Visitantes', 'Total músicos', 'Presença %', 'Faltas %']],
-        body: week.cultos.map((culto) => {
-          const rate = culto.rate
-          const visitorsCount = getVisitorsCount(culto.serviceId, culto.date)
-          const weekdayLabel = getWeekdayLabel(culto.serviceId, culto.date)
-          return [
-            formatDateWithWeekday(culto.date, weekdayLabel),
-            String(culto.present),
-            String(visitorsCount),
-            String(activeTotal),
-            formatPercent(rate),
-            formatPercent(100 - rate),
-          ]
-        }),
-        ...baseTable,
-      })
     })
   }
 
@@ -500,26 +482,30 @@ const exportReportPdf = (rows: ReportRow[]) => {
         ]],
         ...baseTable,
       })
-      safeAutoTable({
-        startY: nextY(),
-        head: [['Dia do culto', 'Presentes', 'Visitantes', 'Total músicos', 'Presença %', 'Faltas %']],
-        body: month.cultos.map((culto) => {
-          const rate = culto.rate
-          const visitorsCount = getVisitorsCount(culto.serviceId, culto.date)
-          const weekdayLabel = getWeekdayLabel(culto.serviceId, culto.date)
-          return [
-            formatDateWithWeekday(culto.date, weekdayLabel),
-            String(culto.present),
-            String(visitorsCount),
-            String(activeTotal),
-            formatPercent(rate),
-            formatPercent(100 - rate),
-          ]
-        }),
-        ...baseTable,
-      })
     })
   }
+
+  const dailyRows = serviceGroups.map((group) => {
+    const presentCount = new Set(
+      group.records.filter((item) => item.status === 'present').map((item) => item.musician_id),
+    ).size
+    const rate = activeTotal ? (presentCount / activeTotal) * 100 : 0
+    const visitorsCount = getVisitorsCount(group.service?.id ?? group.records[0]?.service_id ?? 0, group.date)
+    return [
+      formatDateWithWeekday(group.date, group.weekday ?? null),
+      String(presentCount),
+      String(visitorsCount),
+      String(activeTotal),
+      formatPercent(rate),
+      formatPercent(100 - rate),
+    ]
+  })
+  safeAutoTable({
+    startY: nextY(),
+    head: [['Dia do culto', 'Presentes', 'Visitantes', 'Total músicos', 'Presença %', 'Faltas %']],
+    body: dailyRows.length ? dailyRows : [['Nenhum dado disponível para este período.', '', '', '', '', '']],
+    ...baseTable,
+  })
 
   safeAutoTable({
     startY: nextY(),
