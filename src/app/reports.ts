@@ -161,9 +161,16 @@ const exportReportPdf = (rows: ReportRow[]) => {
   const formatPercent = (value: number) => `${Math.round(value)}%`
   const formatIsoDate = (value?: string | null) => {
     if (!value) return '--'
-    const date = new Date(value)
-    if (Number.isNaN(date.getTime())) return value
-    return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(date)
+    const normalized = normalizeIsoDate(value)
+    if (!normalized) return value
+    const [year, month, day] = normalized.split('-')
+    if (!year || !month || !day) return value
+    return `${day}/${month}/${year}`
+  }
+  const formatDateWithWeekday = (value?: string | null, weekday?: string | null) => {
+    const dateLabel = formatIsoDate(value)
+    if (!weekday) return dateLabel
+    return `${dateLabel} (${weekday})`
   }
   const normalizeIsoDate = (value?: string | null) => {
     if (!value) return ''
@@ -263,14 +270,19 @@ const exportReportPdf = (rows: ReportRow[]) => {
   }
 
   const groupByServiceDate = () => {
-    const map = new Map<string, { service?: Service; date: string; records: Attendance[] }>()
+    const map = new Map<
+      string,
+      { service?: Service; date: string; weekday?: string | null; records: Attendance[] }
+    >()
     attendance.forEach((item) => {
       const dateKey = normalizeIsoDate(item.service_date)
+      if (!dateKey) return
       const key = `${item.service_id}|${dateKey}`
       if (!map.has(key)) {
         map.set(key, {
           service: services.find((service) => service.id === item.service_id),
           date: dateKey,
+          weekday: item.service_weekday ?? null,
           records: [],
         })
       }
@@ -328,7 +340,7 @@ const exportReportPdf = (rows: ReportRow[]) => {
       startY: nextY(),
       head: [['Relatório por culto']],
       body: [[
-        `Data: ${formatIsoDate(group.date)}`,
+        `Data: ${formatDateWithWeekday(group.date, group.weekday)}`,
       ], [
         `Comum: ${commonName}`,
       ], [
@@ -369,8 +381,11 @@ const exportReportPdf = (rows: ReportRow[]) => {
       { label: string; cultos: { date: string; serviceId: number; present: number; rate: number }[] }
     >()
     serviceGroups.forEach((group) => {
-      const dateObj = new Date(`${group.date}T00:00:00`)
-      if (Number.isNaN(dateObj.getTime())) return
+      const [year, month, day] = group.date.split('-').map(Number)
+      const dateObj = Number.isNaN(year) || Number.isNaN(month) || Number.isNaN(day)
+        ? null
+        : new Date(year, month - 1, day)
+      if (!dateObj || Number.isNaN(dateObj.getTime())) return
       const weekKey = `${dateObj.getFullYear()}-W${Math.ceil(((dateObj.getDate() + (new Date(dateObj.getFullYear(), dateObj.getMonth(), 1).getDay() || 7) - 1) / 7))}`
       const presentCount = new Set(
         group.records.filter((item) => item.status === 'present').map((item) => item.musician_id),
@@ -390,6 +405,16 @@ const exportReportPdf = (rows: ReportRow[]) => {
   }
 
   const weeklySummary = buildWeeklySummary()
+  const weekdayByKey = new Map<string, string | null>(
+    serviceGroups.map((group) => [
+      `${group.service?.id ?? group.records[0]?.service_id ?? 0}|${group.date}`,
+      group.weekday ?? null,
+    ]),
+  )
+
+  const getWeekdayLabel = (serviceId: number, date: string) =>
+    weekdayByKey.get(`${serviceId}|${date}`) ?? null
+
   if (weeklySummary.length) {
     weeklySummary.forEach((week) => {
       const averageRate = week.cultos.length
@@ -413,8 +438,9 @@ const exportReportPdf = (rows: ReportRow[]) => {
         body: week.cultos.map((culto) => {
           const rate = culto.rate
           const visitorsCount = getVisitorsCount(culto.serviceId, culto.date)
+          const weekdayLabel = getWeekdayLabel(culto.serviceId, culto.date)
           return [
-            formatIsoDate(culto.date),
+            formatDateWithWeekday(culto.date, weekdayLabel),
             String(culto.present),
             String(visitorsCount),
             String(activeTotal),
@@ -433,8 +459,11 @@ const exportReportPdf = (rows: ReportRow[]) => {
       { label: string; cultos: { date: string; serviceId: number; present: number; rate: number }[] }
     >()
     serviceGroups.forEach((group) => {
-      const dateObj = new Date(`${group.date}T00:00:00`)
-      if (Number.isNaN(dateObj.getTime())) return
+      const [year, month, day] = group.date.split('-').map(Number)
+      const dateObj = Number.isNaN(year) || Number.isNaN(month) || Number.isNaN(day)
+        ? null
+        : new Date(year, month - 1, day)
+      if (!dateObj || Number.isNaN(dateObj.getTime())) return
       const monthKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`
       const presentCount = new Set(
         group.records.filter((item) => item.status === 'present').map((item) => item.musician_id),
@@ -477,8 +506,9 @@ const exportReportPdf = (rows: ReportRow[]) => {
         body: month.cultos.map((culto) => {
           const rate = culto.rate
           const visitorsCount = getVisitorsCount(culto.serviceId, culto.date)
+          const weekdayLabel = getWeekdayLabel(culto.serviceId, culto.date)
           return [
-            formatIsoDate(culto.date),
+            formatDateWithWeekday(culto.date, weekdayLabel),
             String(culto.present),
             String(visitorsCount),
             String(activeTotal),
