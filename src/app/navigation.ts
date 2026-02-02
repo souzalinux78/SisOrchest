@@ -1,3 +1,5 @@
+import { loadReports } from './reports'
+
 const titleByView: Record<string, string> = {
   dashboard: 'Dashboard principal',
   musicians: 'Gestão de músicos',
@@ -25,6 +27,9 @@ export const setupNavigation = () => {
     })
     if (appBarTitle) {
       appBarTitle.textContent = titleByView[viewId] ?? 'SisOrchest'
+    }
+    if (viewId === 'reports') {
+      loadReports()
     }
   }
 

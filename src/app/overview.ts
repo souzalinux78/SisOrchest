@@ -36,5 +36,4 @@ export const loadAllData = async () => {
   await loadAttendanceList(commonId)
   await loadAttendanceLookups()
   await loadUsersList()
-  await loadReports()
 }

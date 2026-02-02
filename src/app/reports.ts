@@ -705,7 +705,9 @@ const loadReportData = async (filters: { commonId?: number | null; musicianId?: 
       api.getMusicians({ common_id: commonId ?? undefined }),
       api.getServices({ common_id: commonId ?? undefined }),
       api.getAttendance({ common_id: commonId ?? undefined }),
-    api.getAttendanceVisitors({ common_id: commonId ?? undefined }),
+    commonId
+      ? api.getAttendanceVisitors({ common_id: commonId }).catch(() => [])
+      : Promise.resolve([]),
     ])
 
   const allowedCommons =
