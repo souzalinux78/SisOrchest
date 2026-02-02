@@ -271,7 +271,27 @@ export const setupAttendanceForm = () => {
   const dateInput = document.getElementById('attendance-date') as HTMLInputElement | null
   const warning = document.getElementById('attendance-warning')
   const listContainer = document.getElementById('attendance-musicians-list')
-  const visitorsInput = document.getElementById('attendance-visitors') as HTMLInputElement | null
+  let visitorsInput = document.getElementById('attendance-visitors') as HTMLInputElement | null
+
+  if (!visitorsInput) {
+    const dateLabel = dateInput?.closest('label')
+    const formGrid = dateLabel?.parentElement
+    if (dateLabel && formGrid) {
+      const label = document.createElement('label')
+      const span = document.createElement('span')
+      span.textContent = 'Quantidade de músicos visitantes'
+      const input = document.createElement('input')
+      input.id = 'attendance-visitors'
+      input.type = 'number'
+      input.min = '0'
+      input.step = '1'
+      input.value = '0'
+      label.appendChild(span)
+      label.appendChild(input)
+      dateLabel.insertAdjacentElement('afterend', label)
+      visitorsInput = input
+    }
+  }
 
   serviceSelect?.addEventListener('change', async () => {
     try {
