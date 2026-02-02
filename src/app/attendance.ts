@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { Attendance, AttendanceVisitors, Musician, Service } from './api'
+import type { Attendance, Musician, Service } from './api'
 import { clearTableLoading, formatDate, formatDateTime, formatServiceSchedule, setHtml, setTableLoading, setText } from './dom'
 import { getCurrentUser } from './session'
 
