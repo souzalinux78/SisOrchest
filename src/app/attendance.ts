@@ -67,6 +67,16 @@ const parseBrDateToIso = (value?: string | null) => {
   return iso
 }
 
+const applyDateMask = (value: string) => {
+  const digits = value.replace(/\D/g, '').slice(0, 8)
+  const parts = []
+  if (digits.length >= 2) parts.push(digits.slice(0, 2))
+  if (digits.length >= 4) parts.push(digits.slice(2, 4))
+  if (digits.length > 4) parts.push(digits.slice(4))
+  if (digits.length < 2) parts.push(digits)
+  return parts.filter(Boolean).join('/')
+}
+
 const calculateServiceDate = (weekday?: string | null) => {
   if (!weekday) return ''
   const targetIndex = weekdayOrder.indexOf(weekday)
@@ -263,10 +273,7 @@ export const setupAttendanceForm = () => {
   dateInput?.addEventListener('change', () => {
     if (!dateInput?.value) return
     const isoDate = parseBrDateToIso(dateInput.value)
-    if (!isoDate) {
-      setText('attendance-status-text', 'Data inválida. Use o formato DD/MM/AAAA.')
-      return
-    }
+    if (!isoDate) return
     const selectedDate = new Date(`${isoDate}T00:00:00`)
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -279,6 +286,21 @@ export const setupAttendanceForm = () => {
     refreshAttendanceCache().then(() => {
       renderExistingAttendance(Number(serviceSelect?.value ?? 0), isoDate)
     })
+  })
+
+  dateInput?.addEventListener('input', () => {
+    if (!dateInput) return
+    const masked = applyDateMask(dateInput.value)
+    dateInput.value = masked
+  })
+
+  dateInput?.addEventListener('blur', () => {
+    if (!dateInput?.value) return
+    if (dateInput.value.length < 10) return
+    const isoDate = parseBrDateToIso(dateInput.value)
+    if (!isoDate) {
+      setText('attendance-status-text', 'Data inválida. Use o formato DD/MM/AAAA.')
+    }
   })
 
   listContainer?.addEventListener('change', (event) => {
