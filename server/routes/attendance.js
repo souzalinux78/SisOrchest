@@ -131,10 +131,24 @@ router.get('/visitors', async (req, res) => {
 
     return res.json(rows ?? [])
   } catch (error) {
+    // Tratamento específico para erros do MySQL
+    if (error.code === 'ER_BAD_FIELD_ERROR' || error.code === 'ER_PARSE_ERROR') {
+      console.error('Erro de SQL ao listar visitantes.', {
+        query: req.query,
+        error: error.message,
+        code: error.code,
+        sqlState: error.sqlState,
+      })
+      return res.status(500).json({ message: 'Erro interno no banco de dados. Contate o administrador.' })
+    }
+
     console.error('Erro ao listar visitantes.', {
       query: req.query,
       error: error.message,
       stack: error.stack,
+      code: error.code,
+      sqlState: error.sqlState,
+      sqlMessage: error.sqlMessage,
     })
     return handleError(res, error, 'Erro ao listar visitantes.')
   }
@@ -171,6 +185,16 @@ router.post('/visitors', async (req, res) => {
       return res.status(400).json({ message: 'Quantidade de visitantes inválida. Deve ser um número inteiro maior ou igual a zero.' })
     }
 
+    // Validação: verificar se o service_id existe antes de inserir
+    const [serviceCheck] = await pool.query(
+      'SELECT id FROM services WHERE id = ?',
+      [serviceId],
+    )
+
+    if (!serviceCheck || serviceCheck.length === 0) {
+      return res.status(404).json({ message: 'Culto não encontrado.' })
+    }
+
     await pool.query(
       `INSERT INTO attendance_visitors (service_id, service_date, visitors_count)
        VALUES (?, ?, ?)
@@ -180,11 +204,43 @@ router.post('/visitors', async (req, res) => {
 
     return res.json({ message: 'Visitantes registrados.' })
   } catch (error) {
+    // Tratamento específico para erros do MySQL
+    if (error.code === 'ER_NO_REFERENCED_ROW_2' || error.code === 'ER_NO_REFERENCED_ROW') {
+      console.error('Erro de foreign key ao registrar visitantes.', {
+        body: req.body,
+        error: error.message,
+        code: error.code,
+      })
+      return res.status(404).json({ message: 'Culto não encontrado ou inválido.' })
+    }
+
+    if (error.code === 'ER_DUP_ENTRY') {
+      console.error('Erro de duplicação ao registrar visitantes.', {
+        body: req.body,
+        error: error.message,
+        code: error.code,
+      })
+      // Este erro não deveria ocorrer devido ao ON DUPLICATE KEY UPDATE, mas tratamos mesmo assim
+      return res.status(409).json({ message: 'Registro duplicado. Tente novamente.' })
+    }
+
+    if (error.code === 'ER_BAD_FIELD_ERROR' || error.code === 'ER_PARSE_ERROR') {
+      console.error('Erro de SQL ao registrar visitantes.', {
+        body: req.body,
+        error: error.message,
+        code: error.code,
+        sqlState: error.sqlState,
+      })
+      return res.status(500).json({ message: 'Erro interno no banco de dados. Contate o administrador.' })
+    }
+
     console.error('Erro ao registrar visitantes.', {
       body: req.body,
       error: error.message,
       stack: error.stack,
       code: error.code,
+      sqlState: error.sqlState,
+      sqlMessage: error.sqlMessage,
     })
     return handleError(res, error, 'Erro ao registrar visitantes.')
   }
