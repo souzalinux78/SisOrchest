@@ -19,6 +19,10 @@ export const attendanceView = `
           <span>Data do culto (DD/MM/AAAA)</span>
           <input id="attendance-date" type="text" inputmode="numeric" placeholder="31/01/2026" />
         </label>
+        <label>
+          <span>Quantidade de músicos visitantes</span>
+          <input id="attendance-visitors" type="number" min="0" step="1" value="0" />
+        </label>
       </div>
       <div id="attendance-warning" class="data-status"></div>
       <div id="attendance-existing" class="attendance-existing"></div>
