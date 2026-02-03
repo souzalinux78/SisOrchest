@@ -5,17 +5,50 @@ import { handleError } from './utils.js'
 const router = Router()
 
 const normalizeServiceDate = (value) => {
-  if (!value) return null
-  const trimmed = String(value).trim()
-  if (!trimmed) return null
-  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed
-  const match = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
-  if (!match) return null
-  const [, day, month, year] = match
-  const iso = `${year}-${month}-${day}`
-  const parsed = new Date(`${iso}T00:00:00`)
-  if (Number.isNaN(parsed.getTime())) return null
-  return iso
+  if (value === undefined || value === null || value === '') return null
+  try {
+    const trimmed = String(value).trim()
+    if (!trimmed) return null
+    
+    // Aceita formato ISO: YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      const parsed = new Date(`${trimmed}T00:00:00`)
+      if (Number.isNaN(parsed.getTime())) return null
+      return trimmed
+    }
+    
+    // Aceita formato brasileiro: DD/MM/YYYY
+    const match = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+    if (!match) return null
+    
+    const [, day, month, year] = match
+    const dayNum = Number(day)
+    const monthNum = Number(month)
+    const yearNum = Number(year)
+    
+    // Validação básica de ranges
+    if (dayNum < 1 || dayNum > 31 || monthNum < 1 || monthNum > 12 || yearNum < 1900 || yearNum > 2100) {
+      return null
+    }
+    
+    const iso = `${year}-${month}-${day}`
+    const parsed = new Date(`${iso}T00:00:00`)
+    if (Number.isNaN(parsed.getTime())) return null
+    
+    // Verifica se a data convertida corresponde aos valores originais (evita 31/02 virar 03/03)
+    const parsedDay = parsed.getDate()
+    const parsedMonth = parsed.getMonth() + 1
+    const parsedYear = parsed.getFullYear()
+    
+    if (parsedDay !== dayNum || parsedMonth !== monthNum || parsedYear !== yearNum) {
+      return null
+    }
+    
+    return iso
+  } catch (error) {
+    console.error('Erro ao normalizar data:', { value, error: error.message })
+    return null
+  }
 }
 
 router.get('/', async (req, res) => {
@@ -58,7 +91,7 @@ router.get('/visitors', async (req, res) => {
     const filters = []
     const params = []
 
-    if (service_id) {
+    if (service_id !== undefined && service_id !== null && service_id !== '') {
       const serviceId = Number(service_id)
       if (!Number.isInteger(serviceId) || serviceId <= 0) {
         return res.status(400).json({ message: 'Culto inválido.' })
@@ -67,16 +100,17 @@ router.get('/visitors', async (req, res) => {
       params.push(serviceId)
     }
 
-    const normalizedDate = normalizeServiceDate(service_date ?? cult_date)
-    if (service_date || cult_date) {
+    const dateValue = service_date ?? cult_date
+    if (dateValue !== undefined && dateValue !== null && dateValue !== '') {
+      const normalizedDate = normalizeServiceDate(dateValue)
       if (!normalizedDate) {
-        return res.status(400).json({ message: 'Data do culto inválida.' })
+        return res.status(400).json({ message: 'Data do culto inválida. Use o formato DD/MM/AAAA ou YYYY-MM-DD.' })
       }
       filters.push('v.service_date = ?')
       params.push(normalizedDate)
     }
 
-    if (common_id) {
+    if (common_id !== undefined && common_id !== null && common_id !== '') {
       const commonId = Number(common_id)
       if (!Number.isInteger(commonId) || commonId <= 0) {
         return res.status(400).json({ message: 'Comum inválida.' })
@@ -99,7 +133,8 @@ router.get('/visitors', async (req, res) => {
   } catch (error) {
     console.error('Erro ao listar visitantes.', {
       query: req.query,
-      error,
+      error: error.message,
+      stack: error.stack,
     })
     return handleError(res, error, 'Erro ao listar visitantes.')
   }
@@ -109,20 +144,31 @@ router.post('/visitors', async (req, res) => {
   try {
     const { service_id, service_date, visitors_count } = req.body ?? {}
 
-    const serviceId = Number(service_id)
-    const normalizedDate = normalizeServiceDate(service_date)
+    if (service_id === undefined || service_id === null || service_id === '') {
+      return res.status(400).json({ message: 'Culto é obrigatório.' })
+    }
 
-    if (!serviceId || !Number.isInteger(serviceId)) {
+    const serviceId = Number(service_id)
+    if (!Number.isInteger(serviceId) || serviceId <= 0) {
       return res.status(400).json({ message: 'Culto inválido.' })
     }
 
+    if (service_date === undefined || service_date === null || service_date === '') {
+      return res.status(400).json({ message: 'Data do culto é obrigatória.' })
+    }
+
+    const normalizedDate = normalizeServiceDate(service_date)
     if (!normalizedDate) {
-      return res.status(400).json({ message: 'Data do culto inválida.' })
+      return res.status(400).json({ message: 'Data do culto inválida. Use o formato DD/MM/AAAA ou YYYY-MM-DD.' })
+    }
+
+    if (visitors_count === undefined || visitors_count === null || visitors_count === '') {
+      return res.status(400).json({ message: 'Quantidade de visitantes é obrigatória.' })
     }
 
     const count = Number(visitors_count)
     if (Number.isNaN(count) || count < 0 || !Number.isInteger(count)) {
-      return res.status(400).json({ message: 'Quantidade de visitantes inválida.' })
+      return res.status(400).json({ message: 'Quantidade de visitantes inválida. Deve ser um número inteiro maior ou igual a zero.' })
     }
 
     await pool.query(
@@ -136,7 +182,9 @@ router.post('/visitors', async (req, res) => {
   } catch (error) {
     console.error('Erro ao registrar visitantes.', {
       body: req.body,
-      error,
+      error: error.message,
+      stack: error.stack,
+      code: error.code,
     })
     return handleError(res, error, 'Erro ao registrar visitantes.')
   }
