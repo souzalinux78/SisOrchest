@@ -304,15 +304,17 @@ const exportReportPdf = (rows: ReportRow[]) => {
 
   safeAutoTable({
     startY: headerBottomY,
-    head: [['Resumo geral']],
+    head: [['Resumo geral da comum']],
     body: [[
-      `Músicos ativos: ${activeTotal}`,
+      `Total de músicos ativos da comum: ${activeTotal}`,
     ], [
       `Total de cultos: ${totalCultos}`,
     ], [
-      `Presença média: ${formatPercent(averagePresenceRate)}`,
+      `Presença média da comum: ${formatPercent(averagePresenceRate)}`,
     ], [
-      `Faltas médias: ${formatPercent(100 - averagePresenceRate)}`,
+      `Faltas médias da comum: ${formatPercent(100 - averagePresenceRate)}`,
+    ], [
+      `Nota: Visitantes não entram no cálculo de presença da comum`,
     ]],
     ...baseTable,
   })
@@ -344,19 +346,19 @@ const exportReportPdf = (rows: ReportRow[]) => {
       ], [
         `Comum: ${commonName}`,
       ], [
-        `Total de músicos ativos: ${activeTotal}`,
+        `Total de músicos ativos da comum: ${activeTotal}`,
       ], [
-        `Presentes: ${presentCount}`,
+        `Músicos da comum presentes: ${presentCount}`,
+      ], [
+        `Faltas da comum: ${Math.max(activeTotal - presentCount, 0)}`,
+      ], [
+        `Presença da comum: ${formatPercent(rate)} (${presentCount}/${activeTotal})`,
+      ], [
+        `Faltas da comum: ${formatPercent(100 - rate)} (${Math.max(activeTotal - presentCount, 0)}/${activeTotal})`,
       ], [
         `Visitantes: ${visitorsCount} (não entram na métrica da comum)`,
       ], [
-        `Faltas: ${Math.max(activeTotal - presentCount, 0)}`,
-      ], [
-        `Total geral no culto: ${presentCount + visitorsCount}`,
-      ], [
-        `Presença: ${formatPercent(rate)} (${presentCount}/${activeTotal})`,
-      ], [
-        `Faltas: ${formatPercent(100 - rate)} (${Math.max(activeTotal - presentCount, 0)}/${activeTotal})`,
+        `Total geral no culto: ${presentCount + visitorsCount} (apenas informativo)`,
       ]],
       ...baseTable,
     })
@@ -417,9 +419,9 @@ const exportReportPdf = (rows: ReportRow[]) => {
         body: [[
           `Total de cultos: ${week.cultos.length}`,
         ], [
-          `Presença média: ${formatPercent(averageRate)}`,
+          `Presença média da comum: ${formatPercent(averageRate)}`,
         ], [
-          `Faltas médias: ${formatPercent(100 - averageRate)}`,
+          `Faltas médias da comum: ${formatPercent(100 - averageRate)}`,
         ]],
         ...baseTable,
       })
@@ -467,9 +469,9 @@ const exportReportPdf = (rows: ReportRow[]) => {
         body: [[
           `Total de cultos: ${month.cultos.length}`,
         ], [
-          `Presença média: ${formatPercent(averageRate)}`,
+          `Presença média da comum: ${formatPercent(averageRate)}`,
         ], [
-          `Faltas médias: ${formatPercent(100 - averageRate)}`,
+          `Faltas médias da comum: ${formatPercent(100 - averageRate)}`,
         ]],
         ...baseTable,
       })
@@ -480,20 +482,21 @@ const exportReportPdf = (rows: ReportRow[]) => {
     const presentCount = new Set(
       group.records.filter((item) => item.status === 'present').map((item) => item.musician_id),
     ).size
+    // Presença % calculada APENAS com base em músicos da comum (visitantes NÃO entram)
     const rate = activeTotal ? (presentCount / activeTotal) * 100 : 0
     const visitorsCount = getVisitorsCount(group.service?.id ?? group.records[0]?.service_id ?? 0, group.date)
     return [
       formatDateWithWeekday(group.date, group.weekday ?? null),
-      String(presentCount),
-      String(visitorsCount),
-      String(activeTotal),
-      formatPercent(rate),
-      formatPercent(100 - rate),
+      String(presentCount), // Músicos da comum presentes
+      String(visitorsCount), // Visitantes (informativos, não entram no cálculo)
+      String(activeTotal), // Total de músicos ativos da comum
+      formatPercent(rate), // Presença % da comum (presentCount / activeTotal)
+      formatPercent(100 - rate), // Faltas % da comum
     ]
   })
   safeAutoTable({
     startY: nextY(),
-    head: [['Dia do culto', 'Presentes', 'Visitantes', 'Total músicos', 'Presença %', 'Faltas %']],
+    head: [['Dia do culto', 'Músicos da comum presentes', 'Visitantes', 'Total músicos da comum', 'Presença da comum %', 'Faltas da comum %']],
     body: dailyRows.length ? dailyRows : [['Nenhum dado disponível para este período.', '', '', '', '', '']],
     ...baseTable,
   })
