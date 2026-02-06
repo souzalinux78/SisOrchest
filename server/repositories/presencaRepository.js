@@ -130,3 +130,47 @@ export const upsertAttendance = async (serviceId, musicianId, status, serviceWee
     [serviceId, musicianId, status ?? 'present', serviceWeekday, serviceDate],
   )
 }
+
+/**
+ * Gera relatório de presença agrupado por músico
+ * @param {number} mes - Mês (1-12)
+ * @param {number} ano - Ano (ex: 2024)
+ * @param {number|null} diaSemana - Dia da semana opcional (1=Domingo, 2=Segunda, ..., 7=Sábado)
+ * @returns {Promise<Array>} Array com relatório de presenças por músico
+ */
+export const gerarRelatorioPresenca = async (mes, ano, diaSemana = null) => {
+  const params = []
+  const whereFilters = []
+
+  // Filtro por mês e ano da data do culto
+  whereFilters.push('YEAR(a.service_date) = ?')
+  params.push(ano)
+  whereFilters.push('MONTH(a.service_date) = ?')
+  params.push(mes)
+
+  // Filtro opcional por dia da semana
+  if (diaSemana !== null && diaSemana !== undefined) {
+    whereFilters.push('DAYOFWEEK(a.service_date) = ?')
+    params.push(diaSemana)
+  }
+
+  const whereClause = `WHERE ${whereFilters.join(' AND ')}`
+
+  const [rows] = await pool.query(
+    `SELECT 
+       m.id,
+       m.name as nome,
+       COUNT(a.id) as total_escalas,
+       SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) as total_presencas,
+       SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) as total_faltas
+     FROM attendance a
+     INNER JOIN musicians m ON m.id = a.musician_id
+     INNER JOIN services s ON s.id = a.service_id
+     ${whereClause}
+     GROUP BY m.id, m.name
+     ORDER BY m.name ASC`,
+    params,
+  )
+
+  return rows ?? []
+}
