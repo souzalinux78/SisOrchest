@@ -11,6 +11,21 @@ type ReportSummary = {
   percentual_presenca: number
 }
 
+type RankingItem = {
+  musician_id: number
+  musician_name: string
+  total_presencas: number
+  total_faltas: number
+  percentual_presenca: number
+}
+
+type HistoryItem = {
+  service_date: string
+  weekday: string
+  total_presencas: number
+  total_faltas: number
+}
+
 function Reports() {
   const currentUser = getCurrentUser()
   const currentDate = new Date()
@@ -22,6 +37,8 @@ function Reports() {
   const [month, setMonth] = useState<number>(currentMonth)
   const [year, setYear] = useState<number>(currentYear)
   const [summary, setSummary] = useState<ReportSummary | null>(null)
+  const [ranking, setRanking] = useState<RankingItem[]>([])
+  const [history, setHistory] = useState<HistoryItem[]>([])
   const [loading, setLoading] = useState<boolean>(false)
   const [loadingCommons, setLoadingCommons] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
@@ -57,18 +74,36 @@ function Reports() {
     setLoading(true)
     setError(null)
     setSummary(null)
+    setRanking([])
+    setHistory([])
 
     try {
-      const data = await api.getReportsSummary({
-        common_id: commonId,
-        month,
-        year,
-      })
+      const [summaryData, rankingData, historyData] = await Promise.all([
+        api.getReportsSummary({
+          common_id: commonId,
+          month,
+          year,
+        }),
+        api.getReportsRanking({
+          common_id: commonId,
+          month,
+          year,
+        }),
+        api.getReportsHistory({
+          common_id: commonId,
+          month,
+          year,
+        }),
+      ])
 
-      setSummary(data)
+      setSummary(summaryData)
+      setRanking(Array.isArray(rankingData) ? rankingData : [])
+      setHistory(Array.isArray(historyData) ? historyData : [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao gerar relatório')
       setSummary(null)
+      setRanking([])
+      setHistory([])
     } finally {
       setLoading(false)
     }
@@ -215,6 +250,86 @@ function Reports() {
           }}
         >
           <p>Selecione os filtros e clique em "Gerar Relatório" para visualizar os dados.</p>
+        </div>
+      )}
+
+      {(summary || ranking.length > 0 || history.length > 0) && (
+        <div style={{ marginTop: '2rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+          {ranking.length > 0 && (
+            <div className="form-card">
+              <h3>Ranking de Faltas</h3>
+              <div style={{ overflowX: 'auto' }}>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Músico</th>
+                      <th>Presenças</th>
+                      <th>Faltas</th>
+                      <th>% Presença</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ranking.map((item) => (
+                      <tr key={item.musician_id}>
+                        <td>{item.musician_name}</td>
+                        <td>{item.total_presencas}</td>
+                        <td style={{ color: item.total_faltas > 0 ? '#ef4444' : 'inherit' }}>
+                          {item.total_faltas}
+                        </td>
+                        <td>{item.percentual_presenca.toFixed(2)}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {ranking.length === 0 && summary && (
+            <div className="form-card">
+              <h3>Ranking de Faltas</h3>
+              <p style={{ padding: '1rem', textAlign: 'center', color: 'rgba(255, 255, 255, 0.6)' }}>
+                Nenhum dado de ranking disponível para o período selecionado.
+              </p>
+            </div>
+          )}
+
+          {history.length > 0 && (
+            <div className="form-card">
+              <h3>Histórico por Data</h3>
+              <div style={{ overflowX: 'auto' }}>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Data</th>
+                      <th>Dia da Semana</th>
+                      <th>Presenças</th>
+                      <th>Faltas</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {history.map((item, index) => (
+                      <tr key={`${item.service_date}-${index}`}>
+                        <td>{new Date(item.service_date).toLocaleDateString('pt-BR')}</td>
+                        <td>{item.weekday}</td>
+                        <td>{item.total_presencas}</td>
+                        <td>{item.total_faltas}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {history.length === 0 && summary && (
+            <div className="form-card">
+              <h3>Histórico por Data</h3>
+              <p style={{ padding: '1rem', textAlign: 'center', color: 'rgba(255, 255, 255, 0.6)' }}>
+                Nenhum histórico disponível para o período selecionado.
+              </p>
+            </div>
+          )}
         </div>
       )}
     </>

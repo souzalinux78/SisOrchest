@@ -144,18 +144,23 @@ export async function gerarRankingFaltasPeriodo(commonId, mes, ano, diaSemana = 
 
   return dados
     .map((item) => {
-      const totalEscalas = item.total_escalas || 0
-      const totalFaltas = item.total_faltas || 0
+      const totalEscalas = Number(item.total_escalas) || 0
+      const totalFaltas = Number(item.total_faltas) || 0
+      const totalPresencas = Number(item.total_presencas) || 0
       const percentualFaltas = totalEscalas === 0 ? 0 : Number(((totalFaltas / totalEscalas) * 100).toFixed(2))
+      const percentualPresenca = totalEscalas === 0 ? 0 : Number(((totalPresencas / totalEscalas) * 100).toFixed(2))
 
       return {
-        ...item,
+        musician_id: Number(item.id) || 0,
+        musician_name: String(item.nome || ''),
+        total_presencas: totalPresencas,
+        total_faltas: totalFaltas,
+        percentual_presenca: percentualPresenca,
         percentual_faltas: percentualFaltas,
       }
     })
-    .filter((item) => item.total_escalas > 0)
-    .sort((a, b) => b.percentual_faltas - a.percentual_faltas)
-    .slice(0, 5)
+    .filter((item) => item.total_presencas > 0 || item.total_faltas > 0)
+    .sort((a, b) => b.total_faltas - a.total_faltas)
 }
 
 /**
@@ -167,7 +172,14 @@ export async function gerarRankingFaltasPeriodo(commonId, mes, ano, diaSemana = 
  * @returns {Promise<Array>} Array com histórico por data
  */
 export async function gerarHistoricoPorData(commonId, mes, ano, diaSemana = null) {
-  return await presencaRepository.gerarHistoricoPorData(commonId, mes, ano, diaSemana)
+  const dados = await presencaRepository.gerarHistoricoPorData(commonId, mes, ano, diaSemana)
+
+  return dados.map((item) => ({
+    service_date: String(item.service_date || ''),
+    weekday: String(item.weekday || ''),
+    total_presencas: Number(item.presencas) || 0,
+    total_faltas: Number(item.faltas) || 0,
+  }))
 }
 
 /**

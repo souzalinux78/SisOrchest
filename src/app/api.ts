@@ -218,4 +218,39 @@ export const api = {
       percentual_presenca: number
     }>(`/reports/summary?${queryParams.toString()}`)
   },
+  getReportsRanking: (params: { common_id: number; month: number; year: number; weekday?: string | null }) => {
+    const queryParams = new URLSearchParams()
+    queryParams.set('common_id', String(params.common_id))
+    queryParams.set('month', String(params.month))
+    queryParams.set('year', String(params.year))
+    if (params.weekday !== undefined && params.weekday !== null && params.weekday !== '') {
+      queryParams.set('weekday', String(params.weekday))
+    }
+    return request<
+      Array<{
+        musician_id: number
+        musician_name: string
+        total_presencas: number
+        total_faltas: number
+        percentual_presenca: number
+      }>
+    >(`/reports/ranking?${queryParams.toString()}`)
+  },
+  getReportsHistory: (params: { common_id: number; month: number; year: number; weekday?: string | null }) => {
+    const queryParams = new URLSearchParams()
+    queryParams.set('common_id', String(params.common_id))
+    queryParams.set('month', String(params.month))
+    queryParams.set('year', String(params.year))
+    if (params.weekday !== undefined && params.weekday !== null && params.weekday !== '') {
+      queryParams.set('weekday', String(params.weekday))
+    }
+    return request<
+      Array<{
+        service_date: string
+        weekday: string
+        total_presencas: number
+        total_faltas: number
+      }>
+    >(`/reports/history?${queryParams.toString()}`)
+  },
 }
