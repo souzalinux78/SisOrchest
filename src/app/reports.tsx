@@ -1,59 +1,230 @@
 import { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { api } from './api'
+import { api, type Common } from './api'
+import { getCurrentUser } from './session'
 
-type Common = {
-  id: number
-  name: string
+type ReportSummary = {
+  total_musicos: number
+  total_cultos_distintos: number
+  total_presencas: number
+  total_faltas: number
+  percentual_presenca: number
 }
 
 function Reports() {
-  const [commons, setCommons] = useState<Common[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const currentUser = getCurrentUser()
+  const currentDate = new Date()
+  const currentYear = currentDate.getFullYear()
+  const currentMonth = currentDate.getMonth() + 1
 
+  const [commons, setCommons] = useState<Common[]>([])
+  const [commonId, setCommonId] = useState<number | null>(null)
+  const [month, setMonth] = useState<number>(currentMonth)
+  const [year, setYear] = useState<number>(currentYear)
+  const [summary, setSummary] = useState<ReportSummary | null>(null)
+  const [loading, setLoading] = useState<boolean>(false)
+  const [loadingCommons, setLoadingCommons] = useState<boolean>(true)
+  const [error, setError] = useState<string | null>(null)
+
+  // Carrega lista de comuns ao montar componente
   useEffect(() => {
-    async function load() {
+    const loadCommons = async () => {
       try {
+        setLoadingCommons(true)
         const response = await api.getCommons()
         setCommons(Array.isArray(response) ? response : [])
+
+        // Se usuário não é admin, define common_id automaticamente
+        if (currentUser?.role !== 'admin' && currentUser?.common_id) {
+          setCommonId(currentUser.common_id)
+        }
       } catch (err) {
-        console.error(err)
-        setError('Erro ao carregar relatórios')
+        setError('Erro ao carregar comuns')
       } finally {
-        setLoading(false)
+        setLoadingCommons(false)
       }
     }
 
-    load()
+    loadCommons()
   }, [])
 
-  if (loading) {
-    return <div style={{ padding: 40 }}>Carregando relatórios...</div>
+  const gerarRelatorio = async () => {
+    if (!commonId) {
+      setError('Selecione uma comum antes de gerar o relatório')
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+    setSummary(null)
+
+    try {
+      const data = await api.getReportsSummary({
+        common_id: commonId,
+        month,
+        year,
+      })
+
+      setSummary(data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao gerar relatório')
+      setSummary(null)
+    } finally {
+      setLoading(false)
+    }
   }
 
-  if (error) {
-    return <div style={{ padding: 40, color: 'red' }}>{error}</div>
+  // Gera lista de anos (ano atual e anterior)
+  const years = [currentYear, currentYear - 1]
+
+  const meses = [
+    { value: 1, label: 'Janeiro' },
+    { value: 2, label: 'Fevereiro' },
+    { value: 3, label: 'Março' },
+    { value: 4, label: 'Abril' },
+    { value: 5, label: 'Maio' },
+    { value: 6, label: 'Junho' },
+    { value: 7, label: 'Julho' },
+    { value: 8, label: 'Agosto' },
+    { value: 9, label: 'Setembro' },
+    { value: 10, label: 'Outubro' },
+    { value: 11, label: 'Novembro' },
+    { value: 12, label: 'Dezembro' },
+  ]
+
+  const getPercentualClass = (percentual: number) => {
+    if (percentual >= 70) return 'kpi-card--success'
+    if (percentual >= 50) return 'kpi-card--warning'
+    return 'kpi-card--danger'
   }
 
   return (
-    <div style={{ padding: 40 }}>
-      <h1>Relatórios Executivos</h1>
+    <section className="view" data-view="reports">
+      <div className="view-header">
+        <div>
+          <h2>Relatórios Executivos</h2>
+          <p>Visões gerenciais para tomada de decisão.</p>
+        </div>
+      </div>
 
-      <h3>Comuns cadastradas</h3>
-      <ul>
-        {commons.map(c => (
-          <li key={c.id}>{c.name}</li>
-        ))}
-      </ul>
-    </div>
+      {error && (
+        <div
+          style={{
+            padding: '1rem',
+            marginBottom: '1.5rem',
+            backgroundColor: 'rgba(239, 68, 68, 0.15)',
+            border: '1px solid rgba(239, 68, 68, 0.5)',
+            borderRadius: '12px',
+            color: '#ef4444',
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      <div className="form-card">
+        <h3>Filtros do Relatório</h3>
+        <div className="form-grid">
+          {currentUser?.role === 'admin' && (
+            <label>
+              <span>Comum</span>
+              <select
+                value={commonId || ''}
+                onChange={(e) => setCommonId(e.target.value ? Number(e.target.value) : null)}
+                disabled={loadingCommons}
+              >
+                <option value="">Selecione uma comum</option>
+                {commons.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          <label>
+            <span>Mês</span>
+            <select value={month} onChange={(e) => setMonth(Number(e.target.value))}>
+              {meses.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            <span>Ano</span>
+            <select value={year} onChange={(e) => setYear(Number(e.target.value))}>
+              {years.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+            <button
+              className="primary"
+              onClick={gerarRelatorio}
+              disabled={loading || !commonId || loadingCommons}
+            >
+              {loading ? 'Gerando...' : 'Gerar Relatório'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {summary && (
+        <div className="kpi-grid" style={{ marginTop: '2rem' }}>
+          <article className="kpi-card">
+            <span className="kpi-label">Total de Músicos</span>
+            <strong className="kpi-value">{summary.total_musicos}</strong>
+          </article>
+
+          <article className="kpi-card">
+            <span className="kpi-label">Total de Cultos Distintos</span>
+            <strong className="kpi-value">{summary.total_cultos_distintos}</strong>
+          </article>
+
+          <article className="kpi-card">
+            <span className="kpi-label">Total de Presenças</span>
+            <strong className="kpi-value">{summary.total_presencas}</strong>
+          </article>
+
+          <article className="kpi-card">
+            <span className="kpi-label">Total de Faltas</span>
+            <strong className="kpi-value">{summary.total_faltas}</strong>
+          </article>
+
+          <article className={`kpi-card ${getPercentualClass(summary.percentual_presenca)}`}>
+            <span className="kpi-label">Percentual de Presença</span>
+            <strong className="kpi-value">{summary.percentual_presenca.toFixed(2)}%</strong>
+          </article>
+        </div>
+      )}
+
+      {!summary && !loading && !error && (
+        <div
+          style={{
+            padding: '3rem',
+            textAlign: 'center',
+            color: 'rgba(255, 255, 255, 0.6)',
+          }}
+        >
+          <p>Selecione os filtros e clique em "Gerar Relatório" para visualizar os dados.</p>
+        </div>
+      )}
+    </section>
   )
 }
 
 let reactRoot: ReturnType<typeof createRoot> | null = null
 
 export function setupReports() {
-  // Função vazia - mantida para compatibilidade, mas não faz nada
+  // Função vazia - mantida para compatibilidade
 }
 
 export function loadReports() {
