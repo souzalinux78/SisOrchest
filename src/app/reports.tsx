@@ -111,7 +111,7 @@ function Reports() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao gerar relatório')
       setSummary(null)
-      setRanking([])
+      setRanking(null)
       setHistory([])
     } finally {
       setLoading(false)
