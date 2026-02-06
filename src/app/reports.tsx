@@ -1,3 +1,4 @@
+import React from 'react'
 import { api } from './api'
 import type { Attendance, AttendanceVisitors, Common, Musician, Service } from './api'
 import { clearTableLoading, clearTextLoading, formatServiceSchedule, requireConfirmClick, setButtonLoading, setHtml, setTableLoading, setText, setTextLoading } from './dom'
