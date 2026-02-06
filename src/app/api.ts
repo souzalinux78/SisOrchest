@@ -63,6 +63,11 @@ const request = async <T>(path: string, options?: RequestInit): Promise<T> => {
     throw new Error(message)
   }
 
+  // Se a resposta vier no formato padronizado { success: true, data: [...] }, extrai o data
+  if (data && typeof data === 'object' && 'success' in data && 'data' in data) {
+    return data.data as T
+  }
+
   return data as T
 }
 
