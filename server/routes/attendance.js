@@ -1,6 +1,6 @@
 import { Router } from 'express'
-import { pool } from '../db.js'
-import { handleError } from './utils.js'
+import * as presencaService from '../services/presencaService.js'
+import * as responseHandler from '../utils/responseHandler.js'
 
 const router = Router()
 
@@ -54,92 +54,70 @@ const normalizeServiceDate = (value) => {
 router.get('/', async (req, res) => {
   try {
     const { service_id, common_id } = req.query ?? {}
-    const params = []
-    const filters = []
+    const filters = {}
 
     if (service_id) {
-      filters.push('a.service_id = ?')
-      params.push(service_id)
+      filters.service_id = service_id
     }
 
     if (common_id) {
-      filters.push('m.common_id = ?')
-      params.push(common_id)
+      filters.common_id = common_id
     }
 
-    const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : ''
-
-    const [rows] = await pool.query(
-      `SELECT a.id, a.service_id, a.musician_id, a.status, a.service_weekday, a.service_date, a.recorded_at,
-              m.name, m.instrument, m.common_id
-       FROM attendance a
-       INNER JOIN musicians m ON m.id = a.musician_id
-       ${whereClause}
-       ORDER BY a.service_date DESC, m.name ASC`,
-      params,
-    )
-
-    return res.json(rows ?? [])
+    const data = await presencaService.listarPresencas(filters)
+    return responseHandler.success(res, data)
   } catch (error) {
-    return handleError(res, error, 'Erro ao listar presenças.')
+    console.error('Erro ao listar presenças.', {
+      query: req.query,
+      error: error.message,
+      stack: error.stack,
+    })
+    return responseHandler.error(res, 'Erro ao listar presenças.', 500)
   }
 })
 
 router.get('/visitors', async (req, res) => {
   try {
     const { service_id, service_date, cult_date, common_id } = req.query ?? {}
-    const filters = []
-    const params = []
+    const filters = {}
 
     if (service_id !== undefined && service_id !== null && service_id !== '') {
       const serviceId = Number(service_id)
       if (!Number.isInteger(serviceId) || serviceId <= 0) {
-        return res.status(400).json({ message: 'Culto inválido.' })
+        return responseHandler.error(res, 'Culto inválido.', 400)
       }
-      filters.push('v.service_id = ?')
-      params.push(serviceId)
+      filters.service_id = serviceId
     }
 
     const dateValue = service_date ?? cult_date
     if (dateValue !== undefined && dateValue !== null && dateValue !== '') {
       const normalizedDate = normalizeServiceDate(dateValue)
       if (!normalizedDate) {
-        return res.status(400).json({ message: 'Data do culto inválida. Use o formato DD/MM/AAAA ou YYYY-MM-DD.' })
+        return responseHandler.error(res, 'Data do culto inválida. Use o formato DD/MM/AAAA ou YYYY-MM-DD.', 400)
       }
-      filters.push('v.service_date = ?')
-      params.push(normalizedDate)
+      filters.service_date = normalizedDate
     }
 
     if (common_id !== undefined && common_id !== null && common_id !== '') {
       const commonId = Number(common_id)
       if (!Number.isInteger(commonId) || commonId <= 0) {
-        return res.status(400).json({ message: 'Comum inválida.' })
+        return responseHandler.error(res, 'Comum inválida.', 400)
       }
-      filters.push('s.common_id = ?')
-      params.push(commonId)
+      filters.common_id = commonId
     }
 
-    const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : ''
-    const [rows] = await pool.query(
-      `SELECT v.service_id, v.service_date, v.visitors_count, v.updated_at, s.common_id
-       FROM attendance_visitors v
-       INNER JOIN services s ON s.id = v.service_id
-       ${whereClause}
-       ORDER BY v.service_date DESC`,
-      params,
-    )
-
-    return res.json(rows ?? [])
+    const data = await presencaService.listarVisitantes(filters)
+    return responseHandler.success(res, data)
   } catch (error) {
     // Tratamento específico para erros do MySQL
-    if (error.code === 'ER_BAD_FIELD_ERROR' || error.code === 'ER_PARSE_ERROR') {
+    if (error.code === 'ER_BAD_FIELD_ERROR' || error.code === 'ER_PARSE_ERROR' || error.code === 'ER_NO_SUCH_TABLE') {
       console.error('Erro de SQL ao listar visitantes.', {
         query: req.query,
         error: error.message,
         code: error.code,
         sqlState: error.sqlState,
       })
-      return res.status(500).json({ message: 'Erro interno no banco de dados. Contate o administrador.' })
+      return responseHandler.error(res, 'Erro interno no banco de dados. Contate o administrador.', 500)
     }
 
     console.error('Erro ao listar visitantes.', {
@@ -150,7 +128,7 @@ router.get('/visitors', async (req, res) => {
       sqlState: error.sqlState,
       sqlMessage: error.sqlMessage,
     })
-    return handleError(res, error, 'Erro ao listar visitantes.')
+    return responseHandler.error(res, 'Erro ao listar visitantes.', 500)
   }
 })
 
@@ -159,50 +137,42 @@ router.post('/visitors', async (req, res) => {
     const { service_id, service_date, visitors_count } = req.body ?? {}
 
     if (service_id === undefined || service_id === null || service_id === '') {
-      return res.status(400).json({ message: 'Culto é obrigatório.' })
+      return responseHandler.error(res, 'Culto é obrigatório.', 400)
     }
 
     const serviceId = Number(service_id)
     if (!Number.isInteger(serviceId) || serviceId <= 0) {
-      return res.status(400).json({ message: 'Culto inválido.' })
+      return responseHandler.error(res, 'Culto inválido.', 400)
     }
 
     if (service_date === undefined || service_date === null || service_date === '') {
-      return res.status(400).json({ message: 'Data do culto é obrigatória.' })
+      return responseHandler.error(res, 'Data do culto é obrigatória.', 400)
     }
 
     const normalizedDate = normalizeServiceDate(service_date)
     if (!normalizedDate) {
-      return res.status(400).json({ message: 'Data do culto inválida. Use o formato DD/MM/AAAA ou YYYY-MM-DD.' })
+      return responseHandler.error(res, 'Data do culto inválida. Use o formato DD/MM/AAAA ou YYYY-MM-DD.', 400)
     }
 
     if (visitors_count === undefined || visitors_count === null || visitors_count === '') {
-      return res.status(400).json({ message: 'Quantidade de visitantes é obrigatória.' })
+      return responseHandler.error(res, 'Quantidade de visitantes é obrigatória.', 400)
     }
 
     const count = Number(visitors_count)
     if (Number.isNaN(count) || count < 0 || !Number.isInteger(count)) {
-      return res.status(400).json({ message: 'Quantidade de visitantes inválida. Deve ser um número inteiro maior ou igual a zero.' })
+      return responseHandler.error(res, 'Quantidade de visitantes inválida. Deve ser um número inteiro maior ou igual a zero.', 400)
     }
 
     // Validação: verificar se o service_id existe antes de inserir
-    const [serviceCheck] = await pool.query(
-      'SELECT id FROM services WHERE id = ?',
-      [serviceId],
-    )
+    const serviceCheck = await presencaService.verificarCultoExiste(serviceId)
 
     if (!serviceCheck || serviceCheck.length === 0) {
-      return res.status(404).json({ message: 'Culto não encontrado.' })
+      return responseHandler.error(res, 'Culto não encontrado.', 404)
     }
 
-    await pool.query(
-      `INSERT INTO attendance_visitors (service_id, service_date, visitors_count)
-       VALUES (?, ?, ?)
-       ON DUPLICATE KEY UPDATE visitors_count = VALUES(visitors_count), updated_at = CURRENT_TIMESTAMP`,
-      [serviceId, normalizedDate, count],
-    )
+    await presencaService.salvarVisitantes(serviceId, normalizedDate, count)
 
-    return res.json({ message: 'Visitantes registrados.' })
+    return responseHandler.success(res, null, 'Visitantes registrados.')
   } catch (error) {
     // Tratamento específico para erros do MySQL
     if (error.code === 'ER_NO_REFERENCED_ROW_2' || error.code === 'ER_NO_REFERENCED_ROW') {
@@ -211,7 +181,7 @@ router.post('/visitors', async (req, res) => {
         error: error.message,
         code: error.code,
       })
-      return res.status(404).json({ message: 'Culto não encontrado ou inválido.' })
+      return responseHandler.error(res, 'Culto não encontrado ou inválido.', 404)
     }
 
     if (error.code === 'ER_DUP_ENTRY') {
@@ -221,17 +191,17 @@ router.post('/visitors', async (req, res) => {
         code: error.code,
       })
       // Este erro não deveria ocorrer devido ao ON DUPLICATE KEY UPDATE, mas tratamos mesmo assim
-      return res.status(409).json({ message: 'Registro duplicado. Tente novamente.' })
+      return responseHandler.error(res, 'Registro duplicado. Tente novamente.', 409)
     }
 
-    if (error.code === 'ER_BAD_FIELD_ERROR' || error.code === 'ER_PARSE_ERROR') {
+    if (error.code === 'ER_BAD_FIELD_ERROR' || error.code === 'ER_PARSE_ERROR' || error.code === 'ER_NO_SUCH_TABLE') {
       console.error('Erro de SQL ao registrar visitantes.', {
         body: req.body,
         error: error.message,
         code: error.code,
         sqlState: error.sqlState,
       })
-      return res.status(500).json({ message: 'Erro interno no banco de dados. Contate o administrador.' })
+      return responseHandler.error(res, 'Erro interno no banco de dados. Contate o administrador.', 500)
     }
 
     console.error('Erro ao registrar visitantes.', {
@@ -242,7 +212,7 @@ router.post('/visitors', async (req, res) => {
       sqlState: error.sqlState,
       sqlMessage: error.sqlMessage,
     })
-    return handleError(res, error, 'Erro ao registrar visitantes.')
+    return responseHandler.error(res, 'Erro ao registrar visitantes.', 500)
   }
 })
 
@@ -251,19 +221,19 @@ router.post('/', async (req, res) => {
     const { service_id, musician_id, status, service_weekday, service_date } = req.body ?? {}
 
     if (!service_id || !musician_id || !service_weekday || !service_date) {
-      return res.status(400).json({ message: 'Dados do culto e músico são obrigatórios.' })
+      return responseHandler.error(res, 'Dados do culto e músico são obrigatórios.', 400)
     }
 
-    await pool.query(
-      `INSERT INTO attendance (service_id, musician_id, status, service_weekday, service_date)
-       VALUES (?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE status = VALUES(status), service_weekday = VALUES(service_weekday), service_date = VALUES(service_date), recorded_at = CURRENT_TIMESTAMP`,
-      [service_id, musician_id, status ?? 'present', service_weekday, service_date],
-    )
+    await presencaService.salvarPresenca(service_id, musician_id, status, service_weekday, service_date)
 
-    return res.json({ message: 'Presença registrada.' })
+    return responseHandler.success(res, null, 'Presença registrada.')
   } catch (error) {
-    return handleError(res, error, 'Erro ao registrar presença.')
+    console.error('Erro ao registrar presença.', {
+      body: req.body,
+      error: error.message,
+      stack: error.stack,
+    })
+    return responseHandler.error(res, 'Erro ao registrar presença.', 500)
   }
 })
 
