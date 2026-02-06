@@ -51,20 +51,20 @@ export const listAttendance = async (filters = {}) => {
  */
 export const listVisitors = async (filters = {}) => {
   const { service_id, service_date, common_id } = filters
-  const whereFilters = []
   const params = []
+  const whereFilters = []
 
-  if (service_id !== undefined && service_id !== null && service_id !== '') {
-    whereFilters.push('v.service_id = ?')
+  if (service_id) {
+    whereFilters.push('av.service_id = ?')
     params.push(service_id)
   }
 
-  if (service_date !== undefined && service_date !== null && service_date !== '') {
-    whereFilters.push('v.service_date = ?')
+  if (service_date) {
+    whereFilters.push('av.service_date = ?')
     params.push(service_date)
   }
 
-  if (common_id !== undefined && common_id !== null && common_id !== '') {
+  if (common_id) {
     whereFilters.push('s.common_id = ?')
     params.push(common_id)
   }
@@ -72,11 +72,11 @@ export const listVisitors = async (filters = {}) => {
   const whereClause = whereFilters.length ? `WHERE ${whereFilters.join(' AND ')}` : ''
 
   const [rows] = await pool.query(
-    `SELECT v.service_id, v.service_date, v.visitors_count, v.updated_at, s.common_id
-     FROM attendance_visitors v
-     INNER JOIN services s ON s.id = v.service_id
+    `SELECT av.service_id, av.service_date, av.visitors_count, s.common_id
+     FROM attendance_visitors av
+     INNER JOIN services s ON s.id = av.service_id
      ${whereClause}
-     ORDER BY v.service_date DESC`,
+     ORDER BY av.service_date DESC`,
     params,
   )
 
@@ -89,11 +89,7 @@ export const listVisitors = async (filters = {}) => {
  * @returns {Promise<Array>} Array com o resultado da verificação
  */
 export const checkServiceExists = async (serviceId) => {
-  const [rows] = await pool.query(
-    'SELECT id FROM services WHERE id = ?',
-    [serviceId],
-  )
-
+  const [rows] = await pool.query('SELECT id FROM services WHERE id = ?', [serviceId])
   return rows ?? []
 }
 
@@ -108,8 +104,8 @@ export const upsertVisitors = async (serviceId, serviceDate, visitorsCount) => {
   await pool.query(
     `INSERT INTO attendance_visitors (service_id, service_date, visitors_count)
      VALUES (?, ?, ?)
-     ON DUPLICATE KEY UPDATE visitors_count = VALUES(visitors_count), updated_at = CURRENT_TIMESTAMP`,
-    [serviceId, serviceDate, visitorsCount],
+     ON DUPLICATE KEY UPDATE visitors_count = ?`,
+    [serviceId, serviceDate, visitorsCount, visitorsCount],
   )
 }
 
@@ -126,64 +122,57 @@ export const upsertAttendance = async (serviceId, musicianId, status, serviceWee
   await pool.query(
     `INSERT INTO attendance (service_id, musician_id, status, service_weekday, service_date)
      VALUES (?, ?, ?, ?, ?)
-     ON DUPLICATE KEY UPDATE status = VALUES(status), service_weekday = VALUES(service_weekday), service_date = VALUES(service_date), recorded_at = CURRENT_TIMESTAMP`,
-    [serviceId, musicianId, status ?? 'present', serviceWeekday, serviceDate],
+     ON DUPLICATE KEY UPDATE status = ?, service_weekday = ?, service_date = ?`,
+    [serviceId, musicianId, status, serviceWeekday, serviceDate, status, serviceWeekday, serviceDate],
   )
 }
 
 /**
- * Busca músicos escalados para um culto (todos os músicos ativos da mesma comum)
+ * Busca músicos escalados para um culto
  * @param {number} serviceId - ID do culto
- * @returns {Promise<Array>} Array com IDs dos músicos escalados
+ * @returns {Promise<Array>} Array de músicos escalados
  */
 export const buscarMusicosEscalados = async (serviceId) => {
   const [rows] = await pool.query(
-    `SELECT m.id
-     FROM services s
-     INNER JOIN musicians m ON m.common_id = s.common_id
-     WHERE s.id = ? AND m.status = 'active'
-     ORDER BY m.name ASC`,
+    `SELECT m.id, m.name, m.instrument, m.common_id
+     FROM musicians m
+     INNER JOIN services s ON s.id = ? AND s.common_id = m.common_id
+     WHERE m.status = 'active'`,
     [serviceId],
   )
   return rows ?? []
 }
 
 /**
- * Verifica se um registro de presença já existe
+ * Verifica se um registro de presença existe
  * @param {number} serviceId - ID do culto
  * @param {number} musicianId - ID do músico
  * @param {string} serviceDate - Data do culto (formato YYYY-MM-DD)
- * @returns {Promise<boolean>} true se existe, false caso contrário
+ * @returns {Promise<Array>} Array com o resultado da verificação
  */
 export const verificarRegistroExiste = async (serviceId, musicianId, serviceDate) => {
   const [rows] = await pool.query(
-    `SELECT id FROM attendance 
-     WHERE service_id = ? 
-     AND service_date = ? 
-     AND musician_id = ? 
-     LIMIT 1`,
-    [serviceId, serviceDate, musicianId],
-  )
-  return (rows ?? []).length > 0
-}
-
-/**
- * Busca todos os músicos ativos de uma comum
- * @param {number} commonId - ID da comum
- * @returns {Promise<Array>} Array com IDs dos músicos ativos
- */
-export const buscarMusicosAtivosComum = async (commonId) => {
-  const [rows] = await pool.query(
-    `SELECT id FROM musicians 
-     WHERE common_id = ? AND status = 'active' 
-     ORDER BY name ASC`,
-    [commonId],
+    'SELECT id FROM attendance WHERE service_id = ? AND musician_id = ? AND service_date = ?',
+    [serviceId, musicianId, serviceDate],
   )
   return rows ?? []
 }
 
 /**
- * Insere registro de presença com status 'absent'
+ * Busca músicos ativos de uma comum
+ * @param {number} commonId - ID da comum
+ * @returns {Promise<Array>} Array de músicos ativos
+ */
+export const buscarMusicosAtivosComum = async (commonId) => {
+  const [rows] = await pool.query(
+    'SELECT id, name, instrument FROM musicians WHERE common_id = ? AND status = ?',
+    [commonId, 'active'],
+  )
+  return rows ?? []
+}
+
+/**
+ * Insere registro de ausência
  * @param {number} serviceId - ID do culto
  * @param {number} musicianId - ID do músico
  * @param {string} serviceWeekday - Dia da semana do culto
@@ -192,211 +181,145 @@ export const buscarMusicosAtivosComum = async (commonId) => {
  */
 export const inserirRegistroAusente = async (serviceId, musicianId, serviceWeekday, serviceDate) => {
   await pool.query(
-    `INSERT INTO attendance 
-     (service_id, musician_id, status, service_weekday, service_date)
-     VALUES (?, ?, 'absent', ?, ?)`,
+    `INSERT INTO attendance (service_id, musician_id, status, service_weekday, service_date)
+     VALUES (?, ?, 'absent', ?, ?)
+     ON DUPLICATE KEY UPDATE status = 'absent'`,
     [serviceId, musicianId, serviceWeekday, serviceDate],
   )
 }
 
 /**
- * Busca IDs dos músicos que já têm registro para um culto específico
+ * Atualiza registro para presente
  * @param {number} serviceId - ID do culto
+ * @param {number} musicianId - ID do músico
  * @param {string} serviceDate - Data do culto (formato YYYY-MM-DD)
- * @returns {Promise<Set<number>>} Set com IDs dos músicos que já têm registro
+ * @returns {Promise<void>}
  */
-export const buscarMusicosComRegistro = async (serviceId, serviceDate) => {
-  const [rows] = await pool.query(
-    `SELECT musician_id FROM attendance 
-     WHERE service_id = ? 
-     AND service_date = ?`,
-    [serviceId, serviceDate],
+export const atualizarRegistroPresente = async (serviceId, musicianId, serviceDate) => {
+  await pool.query(
+    'UPDATE attendance SET status = ? WHERE service_id = ? AND musician_id = ? AND service_date = ?',
+    ['present', serviceId, musicianId, serviceDate],
   )
-  const ids = (rows ?? []).map(row => Number(row.musician_id))
-  return new Set(ids)
 }
 
 /**
- * Salva presenças e faltas para todos os músicos escalados de um culto
- * Garante que TODOS os músicos ativos da comum tenham registro
+ * Busca IDs de músicos que já têm registro de presença
  * @param {number} serviceId - ID do culto
- * @param {Array<number>} presentesIds - Array com IDs dos músicos presentes
+ * @param {string} serviceDate - Data do culto (formato YYYY-MM-DD)
+ * @returns {Promise<Array>} Array de IDs de músicos
+ */
+export const buscarMusicosComRegistro = async (serviceId, serviceDate) => {
+  const [rows] = await pool.query(
+    'SELECT DISTINCT musician_id FROM attendance WHERE service_id = ? AND service_date = ?',
+    [serviceId, serviceDate],
+  )
+  return rows ?? []
+}
+
+/**
+ * Salva presenças de um culto (insere faltas automaticamente)
+ * @param {number} serviceId - ID do culto
+ * @param {Array<number>} presentesIds - Array de IDs de músicos presentes
  * @param {string} serviceWeekday - Dia da semana do culto
  * @param {string} serviceDate - Data do culto (formato YYYY-MM-DD)
  * @returns {Promise<void>}
  */
 export const salvarPresencasCulto = async (serviceId, presentesIds, serviceWeekday, serviceDate) => {
-  console.log('🟢 [AUDITORIA] salvarPresencasCulto INICIADO')
-  console.log('🟢 [AUDITORIA] Parâmetros:', { serviceId, presentesIds, serviceWeekday, serviceDate })
-  
-  // 1. Busca o common_id do service
-  const [serviceRows] = await pool.query(
-    'SELECT common_id FROM services WHERE id = ? LIMIT 1',
-    [serviceId],
-  )
-
+  // Busca common_id do culto
+  const [serviceRows] = await pool.query('SELECT common_id FROM services WHERE id = ?', [serviceId])
   if (!serviceRows || serviceRows.length === 0) {
-    console.error('🔴 [AUDITORIA] ERRO: Culto não encontrado para serviceId:', serviceId)
-    throw new Error('Culto não encontrado.')
+    throw new Error('Culto não encontrado')
   }
-
   const commonId = serviceRows[0].common_id
-  console.log('🟢 [AUDITORIA] common_id encontrado:', commonId)
 
-  // 2. Busca todos os músicos ativos da comum
+  // Busca todos os músicos ativos da comum
   const musicosAtivos = await buscarMusicosAtivosComum(commonId)
-  console.log('🟢 [AUDITORIA] Músicos ativos encontrados:', musicosAtivos.length)
+  const musicosAtivosIds = musicosAtivos.map((m) => m.id)
 
-  if (musicosAtivos.length === 0) {
-    console.warn('🟡 [AUDITORIA] AVISO: Nenhum músico ativo encontrado. Retornando sem criar registros.')
-    return
-  }
-
-  // 3. Busca quais músicos já têm registro (em uma única query para melhor performance)
+  // Busca músicos que já têm registro
   const musicosComRegistro = await buscarMusicosComRegistro(serviceId, serviceDate)
-  console.log('🟢 [AUDITORIA] Músicos com registro existente:', musicosComRegistro.size)
+  const musicosComRegistroIds = musicosComRegistro.map((r) => r.musician_id)
 
-  // 4. Prepara lista de músicos que precisam ter registro criado (ausentes)
-  const musicosParaCriar = musicosAtivos.filter(m => !musicosComRegistro.has(m.id))
-  console.log('🟢 [AUDITORIA] Músicos que precisam ter registro criado (ausentes):', musicosParaCriar.length)
+  // Identifica músicos sem registro
+  const musicosSemRegistro = musicosAtivosIds.filter((id) => !musicosComRegistroIds.includes(id))
 
-  // 5. Cria registros ausentes em lote (se houver)
-  if (musicosParaCriar.length > 0) {
-    console.log('🟢 [AUDITORIA] Criando registros ausentes em lote para', musicosParaCriar.length, 'músicos')
-    const valores = musicosParaCriar.map(m => [serviceId, m.id, 'absent', serviceWeekday, serviceDate])
-    const placeholders = valores.map(() => '(?, ?, ?, ?, ?)').join(', ')
-    const params = valores.flat()
-
-    try {
-      await pool.query(
-        `INSERT INTO attendance 
-         (service_id, musician_id, status, service_weekday, service_date)
-         VALUES ${placeholders}
-         ON DUPLICATE KEY UPDATE 
-           status = VALUES(status),
-           service_weekday = VALUES(service_weekday),
-           service_date = VALUES(service_date),
-           recorded_at = CURRENT_TIMESTAMP`,
-        params,
-      )
-      console.log('🟢 [AUDITORIA] Registros ausentes criados/atualizados com sucesso')
-    } catch (error) {
-      console.error('🔴 [AUDITORIA] ERRO ao criar registros ausentes:', error.message)
-      console.error('🔴 [AUDITORIA] Stack:', error.stack)
-      throw error
-    }
-  } else {
-    console.log('🟡 [AUDITORIA] Nenhum registro ausente a criar (todos já têm registro)')
-  }
-
-  // 6. Atualiza para 'present' apenas os músicos que foram marcados
-  const presentesSet = new Set(presentesIds.map(id => Number(id)))
-  console.log('🟢 [AUDITORIA] Músicos marcados como presentes:', presentesSet.size)
-  
-  if (presentesSet.size > 0) {
-    // Filtra apenas músicos que existem na lista de ativos
-    const musicosParaAtualizar = Array.from(presentesSet).filter(id => 
-      musicosAtivos.some(m => m.id === id)
-    )
-    console.log('🟢 [AUDITORIA] Músicos válidos para atualizar para presente:', musicosParaAtualizar.length)
-
-    if (musicosParaAtualizar.length > 0) {
-      const placeholders = musicosParaAtualizar.map(() => '?').join(', ')
-      const params = [serviceId, serviceDate, ...musicosParaAtualizar]
-
-      await pool.query(
-        `UPDATE attendance
-         SET status = 'present', recorded_at = CURRENT_TIMESTAMP
-         WHERE service_id = ?
-         AND service_date = ?
-         AND musician_id IN (${placeholders})`,
-        params,
-      )
-      console.log('🟢 [AUDITORIA] Registros atualizados para presente com sucesso')
-    } else {
-      console.warn('🟡 [AUDITORIA] AVISO: Nenhum músico válido para atualizar para presente')
-    }
-  } else {
-    console.log('🟡 [AUDITORIA] Nenhum músico marcado como presente')
-  }
-
-  // 7. Garante que músicos não marcados como presentes tenham status 'absent'
-  // (caso tenham sido alterados de 'present' para 'absent')
-  const musicosNaoPresentes = musicosAtivos
-    .filter(m => !presentesSet.has(m.id))
-    .map(m => m.id)
-
-  console.log('🟢 [AUDITORIA] Músicos não marcados como presentes:', musicosNaoPresentes.length)
-
-  if (musicosNaoPresentes.length > 0) {
-    const placeholders = musicosNaoPresentes.map(() => '?').join(', ')
-    const params = [serviceId, serviceDate, ...musicosNaoPresentes]
-
-    const [updateResult] = await pool.query(
-      `UPDATE attendance
-       SET status = 'absent', recorded_at = CURRENT_TIMESTAMP
-       WHERE service_id = ?
-       AND service_date = ?
-       AND musician_id IN (${placeholders})
-       AND status = 'present'`,
+  // Insere faltas em lote para músicos sem registro
+  if (musicosSemRegistro.length > 0) {
+    const values = musicosSemRegistro.map(() => '(?, ?, ?, ?, ?)').join(', ')
+    const params = musicosSemRegistro.flatMap((id) => [serviceId, id, 'absent', serviceWeekday, serviceDate])
+    await pool.query(
+      `INSERT INTO attendance (service_id, musician_id, status, service_weekday, service_date)
+       VALUES ${values}
+       ON DUPLICATE KEY UPDATE status = 'absent'`,
       params,
     )
-    console.log('🟢 [AUDITORIA] Registros alterados de presente para ausente:', updateResult.affectedRows || 0)
   }
-  
-  console.log('🟢 [AUDITORIA] salvarPresencasCulto CONCLUÍDO COM SUCESSO')
+
+  // Atualiza presenças em lote
+  if (presentesIds.length > 0) {
+    const placeholders = presentesIds.map(() => '?').join(', ')
+    await pool.query(
+      `UPDATE attendance
+       SET status = 'present'
+       WHERE service_id = ? AND musician_id IN (${placeholders}) AND service_date = ?`,
+      [serviceId, ...presentesIds, serviceDate],
+    )
+  }
+
+  // Atualiza faltas em lote para músicos que não estão na lista de presentes
+  const ausentesIds = musicosAtivosIds.filter((id) => !presentesIds.includes(id))
+  if (ausentesIds.length > 0) {
+    const placeholders = ausentesIds.map(() => '?').join(', ')
+    await pool.query(
+      `UPDATE attendance
+       SET status = 'absent'
+       WHERE service_id = ? AND musician_id IN (${placeholders}) AND service_date = ?`,
+      [serviceId, ...ausentesIds, serviceDate],
+    )
+  }
 }
 
 /**
- * Gera relatório de presença agrupado por músico
- * @param {number} commonId - ID da comum (obrigatório)
+ * Gera relatório de presença
+ * @param {number} commonId - ID da comum
  * @param {number} mes - Mês (1-12)
- * @param {number} ano - Ano (ex: 2024)
- * @param {string|null} diaSemana - Dia da semana opcional (string como "Domingo", "Segunda", etc.)
- * @returns {Promise<Array>} Array com relatório de presenças por músico
+ * @param {number} ano - Ano
+ * @param {string|null} diaSemana - Dia da semana (opcional)
+ * @param {number|null} ocorrenciaSemana - Ocorrência da semana no mês (1-5, opcional)
+ * @returns {Promise<Array>} Array com dados do relatório
  */
-export const gerarRelatorioPresenca = async (commonId, mes, ano, diaSemana = null) => {
-  const params = []
-  const whereFilters = []
+export const gerarRelatorioPresenca = async (commonId, mes, ano, diaSemana = null, ocorrenciaSemana = null) => {
+  const params = [commonId, mes, ano]
+  let weekdayFilter = ''
+  let ocorrenciaFilter = ''
 
-  // Filtro obrigatório por comum
-  whereFilters.push('s.common_id = ?')
-  params.push(commonId)
-
-  // Filtro por mês e ano da data do culto
-  whereFilters.push('MONTH(a.service_date) = ?')
-  params.push(mes)
-  whereFilters.push('YEAR(a.service_date) = ?')
-  params.push(ano)
-
-  // Filtro opcional por dia da semana usando services.weekday (string)
-  if (diaSemana !== null && diaSemana !== undefined && diaSemana !== '') {
-    // Se for número (1-7), converte para nome do dia da semana
-    let diaSemanaFiltro = diaSemana
-    if (typeof diaSemana === 'number') {
-      const diasSemana = ['', 'Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
-      if (diaSemana >= 1 && diaSemana <= 7) {
-        diaSemanaFiltro = diasSemana[diaSemana]
-      }
-    }
-    whereFilters.push('s.weekday = ?')
-    params.push(diaSemanaFiltro)
+  if (diaSemana) {
+    weekdayFilter = 'AND s.weekday = ?'
+    params.push(diaSemana)
   }
 
-  const whereClause = `WHERE ${whereFilters.join(' AND ')}`
+  if (ocorrenciaSemana) {
+    ocorrenciaFilter = 'AND FLOOR((DAY(a.service_date)-1)/7)+1 = ?'
+    params.push(ocorrenciaSemana)
+  }
 
   const [rows] = await pool.query(
-    `SELECT 
+    `SELECT
        m.id,
-       m.name as nome,
-       COUNT(*) as total_escalas,
-       SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) as total_presencas,
-       SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) as total_faltas
+       m.name AS nome,
+       COUNT(DISTINCT a.service_id) AS total_escalas,
+       SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) AS total_presencas,
+       SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) AS total_faltas
      FROM services s
      INNER JOIN attendance a ON a.service_id = s.id
      INNER JOIN musicians m ON m.id = a.musician_id
-     ${whereClause}
-     GROUP BY m.id, m.name`,
+     WHERE s.common_id = ?
+       AND MONTH(a.service_date) = ?
+       AND YEAR(a.service_date) = ?
+       ${weekdayFilter}
+       ${ocorrenciaFilter}
+     GROUP BY m.id, m.name
+     ORDER BY m.name ASC`,
     params,
   )
 
@@ -404,19 +327,16 @@ export const gerarRelatorioPresenca = async (commonId, mes, ano, diaSemana = nul
 }
 
 /**
- * Lista cultos que possuem pelo menos uma presença registrada
+ * Lista cultos com presença registrada
  * @param {number} mes - Mês (1-12)
- * @param {number} ano - Ano (ex: 2024)
- * @returns {Promise<Array>} Array com cultos que possuem presenças registradas
+ * @param {number} ano - Ano
+ * @returns {Promise<Array>} Array com dados dos cultos
  */
 export const listarCultosComPresenca = async (mes, ano) => {
   const [rows] = await pool.query(
-    `SELECT DISTINCT
-       a.service_id AS id,
-       a.service_date AS data
+    `SELECT DISTINCT a.service_id AS id, a.service_date AS data
      FROM attendance a
-     WHERE MONTH(a.service_date) = ?
-     AND YEAR(a.service_date) = ?
+     WHERE MONTH(a.service_date) = ? AND YEAR(a.service_date) = ?
      ORDER BY a.service_date DESC`,
     [mes, ano],
   )
@@ -425,56 +345,39 @@ export const listarCultosComPresenca = async (mes, ano) => {
 }
 
 /**
- * Gera ranking de faltas por período agrupado por músico
- * @param {number} commonId - ID da comum (obrigatório)
+ * Gera ranking de faltas do período
+ * @param {number} commonId - ID da comum
  * @param {number} mes - Mês (1-12)
- * @param {number} ano - Ano (ex: 2024)
- * @param {string|null} diaSemana - Dia da semana opcional (string como "Domingo", "Segunda", etc.)
- * @returns {Promise<Array>} Array com ranking de faltas por músico
+ * @param {number} ano - Ano
+ * @param {string|null} diaSemana - Dia da semana (opcional)
+ * @returns {Promise<Array>} Array com dados do ranking
  */
 export const gerarRankingFaltasPeriodo = async (commonId, mes, ano, diaSemana = null) => {
-  const params = []
-  const whereFilters = []
+  const params = [commonId, mes, ano]
+  let weekdayFilter = ''
 
-  // Filtro obrigatório por comum
-  whereFilters.push('s.common_id = ?')
-  params.push(commonId)
-
-  // Filtro por mês e ano da data do culto
-  whereFilters.push('MONTH(a.service_date) = ?')
-  params.push(mes)
-  whereFilters.push('YEAR(a.service_date) = ?')
-  params.push(ano)
-
-  // Filtro opcional por dia da semana usando services.weekday (string)
-  if (diaSemana !== null && diaSemana !== undefined && diaSemana !== '') {
-    // Se for número (1-7), converte para nome do dia da semana
-    let diaSemanaFiltro = diaSemana
-    if (typeof diaSemana === 'number') {
-      const diasSemana = ['', 'Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
-      if (diaSemana >= 1 && diaSemana <= 7) {
-        diaSemanaFiltro = diasSemana[diaSemana]
-      }
-    }
-    whereFilters.push('s.weekday = ?')
-    params.push(diaSemanaFiltro)
+  if (diaSemana) {
+    weekdayFilter = 'AND s.weekday = ?'
+    params.push(diaSemana)
   }
 
-  const whereClause = `WHERE ${whereFilters.join(' AND ')}`
-
   const [rows] = await pool.query(
-    `SELECT 
+    `SELECT
        m.id,
-       m.name,
-       COUNT(*) AS total_escalas,
+       m.name AS nome,
+       COUNT(DISTINCT a.service_id) AS total_escalas,
        SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) AS total_faltas,
        SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) AS total_presencas
      FROM services s
      INNER JOIN attendance a ON a.service_id = s.id
      INNER JOIN musicians m ON m.id = a.musician_id
-     ${whereClause}
+     WHERE s.common_id = ?
+       AND MONTH(a.service_date) = ?
+       AND YEAR(a.service_date) = ?
+       ${weekdayFilter}
      GROUP BY m.id, m.name
-     HAVING COUNT(*) > 0`,
+     HAVING COUNT(a.id) > 0
+     ORDER BY total_faltas DESC`,
     params,
   )
 
@@ -482,13 +385,22 @@ export const gerarRankingFaltasPeriodo = async (commonId, mes, ano, diaSemana = 
 }
 
 /**
- * Gera histórico de presenças e faltas por data
- * @param {number} commonId - ID da comum (obrigatório)
+ * Gera histórico de presença por data
+ * @param {number} commonId - ID da comum
  * @param {number} mes - Mês (1-12)
- * @param {number} ano - Ano (ex: 2024)
+ * @param {number} ano - Ano
+ * @param {string|null} diaSemana - Dia da semana (opcional)
  * @returns {Promise<Array>} Array com histórico por data
  */
-export const gerarHistoricoPorData = async (commonId, mes, ano) => {
+export const gerarHistoricoPorData = async (commonId, mes, ano, diaSemana = null) => {
+  const params = [commonId, mes, ano]
+  let weekdayFilter = ''
+
+  if (diaSemana) {
+    weekdayFilter = 'AND s.weekday = ?'
+    params.push(diaSemana)
+  }
+
   const [rows] = await pool.query(
     `SELECT
        a.service_date,
@@ -498,12 +410,77 @@ export const gerarHistoricoPorData = async (commonId, mes, ano) => {
      FROM services s
      INNER JOIN attendance a ON a.service_id = s.id
      WHERE s.common_id = ?
-     AND MONTH(a.service_date) = ?
-     AND YEAR(a.service_date) = ?
+       AND MONTH(a.service_date) = ?
+       AND YEAR(a.service_date) = ?
+       ${weekdayFilter}
      GROUP BY a.service_date, s.weekday
      ORDER BY a.service_date DESC`,
-    [commonId, mes, ano],
+    params,
   )
 
   return rows ?? []
+}
+
+/**
+ * Busca dados para relatório executivo
+ * @param {number} commonId - ID da comum
+ * @param {number} month - Mês (1-12)
+ * @param {number} year - Ano
+ * @param {string|null} weekday - Dia da semana (opcional)
+ * @returns {Promise<Object>} Objeto com dados do relatório
+ */
+export const buscarDadosRelatorioExecutivo = async (commonId, month, year, weekday = null) => {
+  const params = [commonId, month, year]
+  let weekdayFilter = ''
+
+  if (weekday) {
+    weekdayFilter = 'AND s.weekday = ?'
+    params.push(weekday)
+  }
+
+  // Busca músicos ativos da comum
+  const [musiciansRows] = await pool.query(
+    'SELECT COUNT(*) AS total FROM musicians WHERE common_id = ? AND status = ?',
+    [commonId, 'active'],
+  )
+  const totalMusicos = musiciansRows?.[0]?.total ?? 0
+
+  // Busca cultos distintos do período
+  const [servicesRows] = await pool.query(
+    `SELECT COUNT(DISTINCT a.service_id) AS total
+     FROM services s
+     INNER JOIN attendance a ON a.service_id = s.id
+     WHERE s.common_id = ?
+       AND MONTH(a.service_date) = ?
+       AND YEAR(a.service_date) = ?
+       ${weekdayFilter}`,
+    params,
+  )
+  const totalCultosDistintos = servicesRows?.[0]?.total ?? 0
+
+  // Busca presenças e faltas
+  const [attendanceRows] = await pool.query(
+    `SELECT
+       SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) AS total_presencas,
+       SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) AS total_faltas
+     FROM services s
+     INNER JOIN attendance a ON a.service_id = s.id
+     INNER JOIN musicians m ON m.id = a.musician_id
+     WHERE s.common_id = ?
+       AND MONTH(a.service_date) = ?
+       AND YEAR(a.service_date) = ?
+       AND m.status = 'active'
+       ${weekdayFilter}`,
+    params,
+  )
+
+  const totalPresencas = attendanceRows?.[0]?.total_presencas ?? 0
+  const totalFaltas = attendanceRows?.[0]?.total_faltas ?? 0
+
+  return {
+    total_musicos: totalMusicos,
+    total_cultos_distintos: totalCultosDistintos,
+    total_presencas,
+    total_faltas,
+  }
 }
