@@ -342,6 +342,52 @@ router.get('/relatorios/ranking-faltas', async (req, res) => {
   }
 })
 
+router.get('/relatorios/ranking-faltas-periodo', async (req, res) => {
+  try {
+    const { mes, ano, diaSemana } = req.query ?? {}
+
+    // Validação: mes é obrigatório
+    if (mes === undefined || mes === null || mes === '') {
+      return responseHandler.error(res, 'Mês é obrigatório.', 400)
+    }
+
+    const mesNum = Number(mes)
+    if (!Number.isInteger(mesNum) || mesNum < 1 || mesNum > 12) {
+      return responseHandler.error(res, 'Mês inválido. Deve ser um número entre 1 e 12.', 400)
+    }
+
+    // Validação: ano é obrigatório
+    if (ano === undefined || ano === null || ano === '') {
+      return responseHandler.error(res, 'Ano é obrigatório.', 400)
+    }
+
+    const anoNum = Number(ano)
+    if (!Number.isInteger(anoNum) || anoNum < 1900 || anoNum > 2100) {
+      return responseHandler.error(res, 'Ano inválido. Deve ser um número entre 1900 e 2100.', 400)
+    }
+
+    // Processa diaSemana (opcional)
+    let diaSemanaNum = null
+    if (diaSemana !== undefined && diaSemana !== null && diaSemana !== '') {
+      diaSemanaNum = Number(diaSemana)
+      if (!Number.isInteger(diaSemanaNum) || diaSemanaNum < 1 || diaSemanaNum > 7) {
+        return responseHandler.error(res, 'Dia da semana inválido. Deve ser um número entre 1 (Domingo) e 7 (Sábado).', 400)
+      }
+    }
+
+    const data = await presencaService.gerarRankingFaltasPeriodo(mesNum, anoNum, diaSemanaNum)
+
+    return responseHandler.success(res, data)
+  } catch (error) {
+    console.error('Erro ao gerar ranking de faltas por período.', {
+      query: req.query,
+      error: error.message,
+      stack: error.stack,
+    })
+    return responseHandler.error(res, 'Erro ao gerar ranking de faltas por período.', 500)
+  }
+})
+
 router.get('/relatorios/presenca/pdf', async (req, res) => {
   try {
     const { mes, ano, diaSemana, somentePresentes } = req.query ?? {}

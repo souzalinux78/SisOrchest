@@ -132,3 +132,45 @@ export async function gerarRankingFaltas(mes, ano, diaSemana = null) {
   // Retorna apenas os 5 primeiros
   return comEscalas.slice(0, 5)
 }
+
+/**
+ * Gera ranking de faltas por período com cálculos de percentuais
+ * @param {number} mes - Mês (1-12)
+ * @param {number} ano - Ano (ex: 2024)
+ * @param {number|null} diaSemana - Dia da semana opcional (1=Domingo, 2=Segunda, ..., 7=Sábado)
+ * @returns {Promise<Array>} Array com os 5 músicos com maior percentual de faltas no período
+ */
+export async function gerarRankingFaltasPeriodo(mes, ano, diaSemana = null) {
+  // Busca dados do repositório
+  const dados = await presencaRepository.gerarRankingFaltasPeriodo(mes, ano, diaSemana)
+
+  // Processa cada registro calculando percentual de faltas
+  const ranking = dados.map((registro) => {
+    const totalEscalas = Number(registro.total_escalas) || 0
+    const totalFaltas = Number(registro.total_faltas) || 0
+    const totalPresencas = Number(registro.total_presencas) || 0
+
+    // Calcula percentual de faltas (evita divisão por zero)
+    const percentualFaltas = totalEscalas > 0
+      ? Number(((totalFaltas / totalEscalas) * 100).toFixed(2))
+      : 0
+
+    return {
+      id: registro.id,
+      nome: registro.name || registro.nome,
+      total_escalas: totalEscalas,
+      total_presencas: totalPresencas,
+      total_faltas: totalFaltas,
+      percentual_faltas: percentualFaltas,
+    }
+  })
+
+  // Filtra músicos com total_escalas > 0 (ignora músicos sem escalas)
+  const comEscalas = ranking.filter((item) => item.total_escalas > 0)
+
+  // Ordena por percentual_faltas DESC (maior percentual de faltas primeiro)
+  comEscalas.sort((a, b) => b.percentual_faltas - a.percentual_faltas)
+
+  // Retorna apenas os 5 primeiros
+  return comEscalas.slice(0, 5)
+}

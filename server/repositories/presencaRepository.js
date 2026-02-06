@@ -185,3 +185,94 @@ export const gerarRelatorioPresenca = async (mes, ano, diaSemana = null, ocorren
 
   return rows ?? []
 }
+
+/**
+ * Lista cultos que possuem pelo menos uma presença registrada
+ * @param {number} mes - Mês (1-12)
+ * @param {number} ano - Ano (ex: 2024)
+ * @param {number|null} diaSemana - Dia da semana opcional (1=Domingo, 2=Segunda, ..., 7=Sábado)
+ * @returns {Promise<Array>} Array com cultos que possuem presenças registradas
+ */
+export const listarCultosComPresenca = async (mes, ano, diaSemana = null) => {
+  const params = []
+  const whereFilters = []
+
+  // Filtro por mês e ano da data do culto
+  whereFilters.push('YEAR(a.service_date) = ?')
+  params.push(ano)
+  whereFilters.push('MONTH(a.service_date) = ?')
+  params.push(mes)
+
+  // Filtro opcional por dia da semana
+  if (diaSemana !== null && diaSemana !== undefined) {
+    whereFilters.push('DAYOFWEEK(a.service_date) = ?')
+    params.push(diaSemana)
+  }
+
+  const whereClause = `WHERE ${whereFilters.join(' AND ')}`
+
+  const [rows] = await pool.query(
+    `SELECT DISTINCT 
+       s.id,
+       a.service_date as data
+     FROM attendance a
+     INNER JOIN services s ON s.id = a.service_id
+     ${whereClause}
+     ORDER BY a.service_date DESC`,
+    params,
+  )
+
+  return rows ?? []
+}
+
+/**
+ * Gera ranking de faltas por período agrupado por músico
+ * @param {number} mes - Mês (1-12)
+ * @param {number} ano - Ano (ex: 2024)
+ * @param {number|string|null} diaSemana - Dia da semana opcional (número 1-7 ou string como "Domingo", "Segunda", etc.)
+ * @returns {Promise<Array>} Array com ranking de faltas por músico
+ */
+export const gerarRankingFaltasPeriodo = async (mes, ano, diaSemana = null) => {
+  const params = []
+  const whereFilters = []
+
+  // Filtro por mês e ano da data do culto
+  whereFilters.push('MONTH(a.service_date) = ?')
+  params.push(mes)
+  whereFilters.push('YEAR(a.service_date) = ?')
+  params.push(ano)
+
+  // Filtro opcional por dia da semana usando service_weekday
+  if (diaSemana !== null && diaSemana !== undefined) {
+    // Se for número (1-7), converte para nome do dia da semana
+    let diaSemanaFiltro = diaSemana
+    if (typeof diaSemana === 'number') {
+      const diasSemana = ['', 'Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
+      if (diaSemana >= 1 && diaSemana <= 7) {
+        diaSemanaFiltro = diasSemana[diaSemana]
+      }
+    }
+    whereFilters.push('a.service_weekday = ?')
+    params.push(diaSemanaFiltro)
+  }
+
+  const whereClause = `WHERE ${whereFilters.join(' AND ')}`
+
+  const [rows] = await pool.query(
+    `SELECT 
+       m.id,
+       m.name,
+       COUNT(a.id) AS total_escalas,
+       SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) AS total_faltas,
+       SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) AS total_presencas
+     FROM attendance a
+     INNER JOIN musicians m ON m.id = a.musician_id
+     ${whereClause}
+     GROUP BY m.id, m.name
+     HAVING COUNT(a.id) > 0
+     ORDER BY m.name ASC`,
+    params,
+  )
+
+  return rows ?? []
+}
