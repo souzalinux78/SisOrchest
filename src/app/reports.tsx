@@ -965,8 +965,8 @@ const loadReportData = async (filters: { commonId?: number | null; musicianId?: 
   const resolvedCommonId = currentUser?.role === 'admin' ? null : currentUser?.common_id ?? null
   const commonId = resolvedCommonId ?? filters.commonId ?? null
 
-  // Reset KPIs inicialmente
-  renderKPIs({ totalMusicos: 0, totalFaltas: 0, mediaPresenca: 0, musicosEmRisco: 0 })
+  // NÃO resetar KPIs aqui - será renderizado apenas após dados carregarem
+  // renderKPIs({ totalMusicos: 0, totalFaltas: 0, mediaPresenca: 0, musicosEmRisco: 0 })
 
   try {
     // Se cultoId foi selecionado, usa o novo endpoint
@@ -983,11 +983,15 @@ const loadReportData = async (filters: { commonId?: number | null; musicianId?: 
         somentePresentes: true 
       })
       
+      console.log('🔵 [AUDITORIA] PRESENCA DATA (culto):', reportData)
+      
       // A função request já extrai data automaticamente, então reportData já é o array
       // Filtra apenas músicos presentes (já vem filtrado do backend, mas garantimos aqui também)
       const presentesOnly = Array.isArray(reportData) 
         ? reportData.filter((item: any) => item.total_presencas > 0)
         : []
+      
+      console.log('🔵 [AUDITORIA] presentesOnly após filtro:', presentesOnly)
       
       // Armazena dados completos para KPIs
       currentReportData = presentesOnly.map((item: any) => ({
@@ -1020,7 +1024,9 @@ const loadReportData = async (filters: { commonId?: number | null; musicianId?: 
       }
       
       // Calcula e renderiza KPIs
+      console.log('🔵 [AUDITORIA] Calculando KPIs (culto) com currentReportData:', currentReportData)
       const kpis = calculateKPIs(currentReportData)
+      console.log('🔵 [AUDITORIA] KPIs calculados (culto):', kpis)
       renderKPIs(kpis)
       
       setHtml('reports-table-body', renderReportTable(reportRows))
@@ -1085,7 +1091,9 @@ const loadReportData = async (filters: { commonId?: number | null; musicianId?: 
             diaSemana: diaSemanaStr,
           })
 
+          console.log('🔵 [AUDITORIA] RANKING DATA:', rankingData)
           rankingFaltas = Array.isArray(rankingData) ? rankingData : []
+          console.log('🔵 [AUDITORIA] rankingFaltas após processamento:', rankingFaltas)
 
           // Busca dados completos do relatório para KPIs
           const relatorioData = await api.getRelatorioPresencaMensal({
@@ -1095,7 +1103,9 @@ const loadReportData = async (filters: { commonId?: number | null; musicianId?: 
             diaSemana: diaSemanaStr,
           })
 
+          console.log('🔵 [AUDITORIA] PRESENCA DATA:', relatorioData)
           currentReportData = Array.isArray(relatorioData) ? relatorioData : []
+          console.log('🔵 [AUDITORIA] currentReportData após processamento:', currentReportData)
         } else {
           rankingFaltas = []
           currentReportData = []
@@ -1133,9 +1143,17 @@ const loadReportData = async (filters: { commonId?: number | null; musicianId?: 
       activeTotal: activeMusicians.length,
       visitors,
     }
-    // Calcula e renderiza KPIs
-    const kpis = calculateKPIs(currentReportData)
-    renderKPIs(kpis)
+    // Calcula e renderiza KPIs APENAS se houver dados
+    console.log('🔵 [AUDITORIA] Calculando KPIs (geral) com currentReportData:', currentReportData)
+    if (currentReportData && currentReportData.length > 0) {
+      const kpis = calculateKPIs(currentReportData)
+      console.log('🔵 [AUDITORIA] KPIs calculados (geral):', kpis)
+      renderKPIs(kpis)
+    } else {
+      console.warn('🔴 [AUDITORIA] AVISO: currentReportData está vazio, KPIs não serão renderizados')
+      // Renderiza KPIs zerados apenas se realmente não houver dados
+      renderKPIs({ totalMusicos: 0, totalFaltas: 0, mediaPresenca: 0, musicosEmRisco: 0 })
+    }
 
     setHtml('reports-table-body', renderReportTable(reportRows))
     setupTableSorting()
@@ -1158,10 +1176,24 @@ const loadReportData = async (filters: { commonId?: number | null; musicianId?: 
       reportCommonSelect.disabled = true
     }
 
-    // Renderiza ranking de faltas
-    renderRankingFaltas()
-    renderRankingChart()
-    checkAndShowAlert()
+    // Renderiza ranking de faltas APENAS se houver dados
+    console.log('🔵 [AUDITORIA] Renderizando ranking com rankingFaltas:', rankingFaltas)
+    if (rankingFaltas && rankingFaltas.length > 0) {
+      renderRankingFaltas()
+      renderRankingChart()
+      checkAndShowAlert()
+    } else {
+      console.warn('🔴 [AUDITORIA] AVISO: rankingFaltas está vazio')
+      const rankingContainer = document.getElementById('reports-ranking-faltas')
+      if (rankingContainer) {
+        rankingContainer.innerHTML = '<p>Nenhum dado de ranking disponível para o período selecionado.</p>'
+      }
+      const chartContainer = document.getElementById('reports-ranking-chart')
+      if (chartContainer) {
+        chartContainer.innerHTML = '<p style="padding: 2rem; text-align: center; color: rgba(255, 255, 255, 0.6);">Nenhum dado disponível para o gráfico</p>'
+      }
+      checkAndShowAlert()
+    }
   } finally {
     clearTextLoading(['reports-summary', 'reports-attendance', 'reports-services', 'reports-period'])
     clearTableLoading('reports-table-body')
@@ -1231,7 +1263,9 @@ const loadAvailableDates = async () => {
       diaSemana: diaSemanaNum,
     })
 
+    console.log('🔵 [AUDITORIA] CULTOS DATA:', response)
     availableDates = Array.isArray(response) ? response : []
+    console.log('🔵 [AUDITORIA] availableDates após processamento:', availableDates)
     const options = availableDates.map((date) => `<option value="${date.id}">${date.data || ''}</option>`).join('')
     dateSelect.innerHTML = availableDates.length > 0
       ? `<option value="">Todas as datas</option>${options}`
