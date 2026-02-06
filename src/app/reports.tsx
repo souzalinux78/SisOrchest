@@ -1,7 +1,6 @@
 import { createRoot } from 'react-dom/client'
-import Reports from './Reports'
+import Reports from './ReportsComponent'
 
-// Função para montar o componente React
 let reactRoot: ReturnType<typeof createRoot> | null = null
 
 export const setupReports = () => {
