@@ -99,7 +99,7 @@ function Reports() {
   }
 
   return (
-    <section className="view" data-view="reports">
+    <>
       <div className="view-header">
         <div>
           <h2>Relatórios Executivos</h2>
@@ -217,15 +217,11 @@ function Reports() {
           <p>Selecione os filtros e clique em "Gerar Relatório" para visualizar os dados.</p>
         </div>
       )}
-    </section>
+    </>
   )
 }
 
 let reactRoot: ReturnType<typeof createRoot> | null = null
-
-export function setupReports() {
-  // Função vazia - mantida para compatibilidade
-}
 
 export function loadReports() {
   const container = document.getElementById('reports-react-root')
