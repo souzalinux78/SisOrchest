@@ -189,24 +189,28 @@ export const salvarPresencasCulto = async (serviceId, presentesIds, serviceWeekd
 
 /**
  * Gera relatório de presença agrupado por músico
+ * @param {number} commonId - ID da comum (obrigatório)
  * @param {number} mes - Mês (1-12)
  * @param {number} ano - Ano (ex: 2024)
- * @param {number|null} diaSemana - Dia da semana opcional (1=Domingo, 2=Segunda, ..., 7=Sábado)
- * @param {number|null} ocorrenciaSemana - Ocorrência da semana no mês opcional (1, 2, 3, 4, 5)
+ * @param {string|null} diaSemana - Dia da semana opcional (string como "Domingo", "Segunda", etc.)
  * @returns {Promise<Array>} Array com relatório de presenças por músico
  */
-export const gerarRelatorioPresenca = async (mes, ano, diaSemana = null, ocorrenciaSemana = null) => {
+export const gerarRelatorioPresenca = async (commonId, mes, ano, diaSemana = null) => {
   const params = []
   const whereFilters = []
 
+  // Filtro obrigatório por comum
+  whereFilters.push('s.common_id = ?')
+  params.push(commonId)
+
   // Filtro por mês e ano da data do culto
-  whereFilters.push('YEAR(a.service_date) = ?')
-  params.push(ano)
   whereFilters.push('MONTH(a.service_date) = ?')
   params.push(mes)
+  whereFilters.push('YEAR(a.service_date) = ?')
+  params.push(ano)
 
-  // Filtro opcional por dia da semana usando service_weekday (string)
-  if (diaSemana !== null && diaSemana !== undefined) {
+  // Filtro opcional por dia da semana usando services.weekday (string)
+  if (diaSemana !== null && diaSemana !== undefined && diaSemana !== '') {
     // Se for número (1-7), converte para nome do dia da semana
     let diaSemanaFiltro = diaSemana
     if (typeof diaSemana === 'number') {
@@ -215,18 +219,8 @@ export const gerarRelatorioPresenca = async (mes, ano, diaSemana = null, ocorren
         diaSemanaFiltro = diasSemana[diaSemana]
       }
     }
-    whereFilters.push('a.service_weekday = ?')
+    whereFilters.push('s.weekday = ?')
     params.push(diaSemanaFiltro)
-  }
-
-  // Filtro opcional por ocorrência da semana no mês
-  if (ocorrenciaSemana !== null && ocorrenciaSemana !== undefined) {
-    // Valida que ocorrenciaSemana está entre 1 e 5
-    const ocorrencia = Number(ocorrenciaSemana)
-    if (Number.isInteger(ocorrencia) && ocorrencia >= 1 && ocorrencia <= 5) {
-      whereFilters.push('FLOOR((DAY(a.service_date)-1)/7)+1 = ?')
-      params.push(ocorrencia)
-    }
   }
 
   const whereClause = `WHERE ${whereFilters.join(' AND ')}`
@@ -235,15 +229,14 @@ export const gerarRelatorioPresenca = async (mes, ano, diaSemana = null, ocorren
     `SELECT 
        m.id,
        m.name as nome,
-       COUNT(a.id) as total_escalas,
+       COUNT(*) as total_escalas,
        SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) as total_presencas,
        SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) as total_faltas
-     FROM attendance a
+     FROM services s
+     INNER JOIN attendance a ON a.service_id = s.id
      INNER JOIN musicians m ON m.id = a.musician_id
-     INNER JOIN services s ON s.id = a.service_id
      ${whereClause}
-     GROUP BY m.id, m.name
-     ORDER BY m.name ASC`,
+     GROUP BY m.id, m.name`,
     params,
   )
 
@@ -273,14 +266,19 @@ export const listarCultosComPresenca = async (mes, ano) => {
 
 /**
  * Gera ranking de faltas por período agrupado por músico
+ * @param {number} commonId - ID da comum (obrigatório)
  * @param {number} mes - Mês (1-12)
  * @param {number} ano - Ano (ex: 2024)
- * @param {number|string|null} diaSemana - Dia da semana opcional (número 1-7 ou string como "Domingo", "Segunda", etc.)
+ * @param {string|null} diaSemana - Dia da semana opcional (string como "Domingo", "Segunda", etc.)
  * @returns {Promise<Array>} Array com ranking de faltas por músico
  */
-export const gerarRankingFaltasPeriodo = async (mes, ano, diaSemana = null) => {
+export const gerarRankingFaltasPeriodo = async (commonId, mes, ano, diaSemana = null) => {
   const params = []
   const whereFilters = []
+
+  // Filtro obrigatório por comum
+  whereFilters.push('s.common_id = ?')
+  params.push(commonId)
 
   // Filtro por mês e ano da data do culto
   whereFilters.push('MONTH(a.service_date) = ?')
@@ -288,8 +286,8 @@ export const gerarRankingFaltasPeriodo = async (mes, ano, diaSemana = null) => {
   whereFilters.push('YEAR(a.service_date) = ?')
   params.push(ano)
 
-  // Filtro opcional por dia da semana usando service_weekday
-  if (diaSemana !== null && diaSemana !== undefined) {
+  // Filtro opcional por dia da semana usando services.weekday (string)
+  if (diaSemana !== null && diaSemana !== undefined && diaSemana !== '') {
     // Se for número (1-7), converte para nome do dia da semana
     let diaSemanaFiltro = diaSemana
     if (typeof diaSemana === 'number') {
@@ -298,7 +296,7 @@ export const gerarRankingFaltasPeriodo = async (mes, ano, diaSemana = null) => {
         diaSemanaFiltro = diasSemana[diaSemana]
       }
     }
-    whereFilters.push('a.service_weekday = ?')
+    whereFilters.push('s.weekday = ?')
     params.push(diaSemanaFiltro)
   }
 
@@ -308,16 +306,43 @@ export const gerarRankingFaltasPeriodo = async (mes, ano, diaSemana = null) => {
     `SELECT 
        m.id,
        m.name,
-       COUNT(a.id) AS total_escalas,
+       COUNT(*) AS total_escalas,
        SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) AS total_faltas,
        SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) AS total_presencas
-     FROM attendance a
+     FROM services s
+     INNER JOIN attendance a ON a.service_id = s.id
      INNER JOIN musicians m ON m.id = a.musician_id
      ${whereClause}
      GROUP BY m.id, m.name
-     HAVING COUNT(a.id) > 0
-     ORDER BY m.name ASC`,
+     HAVING COUNT(*) > 0`,
     params,
+  )
+
+  return rows ?? []
+}
+
+/**
+ * Gera histórico de presenças e faltas por data
+ * @param {number} commonId - ID da comum (obrigatório)
+ * @param {number} mes - Mês (1-12)
+ * @param {number} ano - Ano (ex: 2024)
+ * @returns {Promise<Array>} Array com histórico por data
+ */
+export const gerarHistoricoPorData = async (commonId, mes, ano) => {
+  const [rows] = await pool.query(
+    `SELECT
+       a.service_date,
+       s.weekday,
+       SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) AS presencas,
+       SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) AS faltas
+     FROM services s
+     INNER JOIN attendance a ON a.service_id = s.id
+     WHERE s.common_id = ?
+     AND MONTH(a.service_date) = ?
+     AND YEAR(a.service_date) = ?
+     GROUP BY a.service_date, s.weekday
+     ORDER BY a.service_date DESC`,
+    [commonId, mes, ano],
   )
 
   return rows ?? []

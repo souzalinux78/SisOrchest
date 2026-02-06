@@ -85,16 +85,16 @@ export async function listarCultosComPresenca(mes, ano) {
 
 /**
  * Gera relatório de presença com cálculos de percentuais
+ * @param {number} commonId - ID da comum (obrigatório)
  * @param {number} mes - Mês (1-12)
  * @param {number} ano - Ano (ex: 2024)
- * @param {number|null} diaSemana - Dia da semana opcional (1=Domingo, 2=Segunda, ..., 7=Sábado)
+ * @param {string|null} diaSemana - Dia da semana opcional (string como "Domingo", "Segunda", etc.)
  * @param {boolean} somentePresentes - Se true, retorna apenas músicos com presenças > 0
- * @param {number|null} ocorrenciaSemana - Ocorrência da semana no mês opcional (1, 2, 3, 4, 5)
  * @returns {Promise<Array>} Array com relatório de presenças por músico incluindo percentuais
  */
-export async function gerarRelatorioPresenca(mes, ano, diaSemana = null, somentePresentes = false, ocorrenciaSemana = null) {
+export async function gerarRelatorioPresenca(commonId, mes, ano, diaSemana = null, somentePresentes = false) {
   // Busca dados do repositório
-  const dados = await presencaRepository.gerarRelatorioPresenca(mes, ano, diaSemana, ocorrenciaSemana)
+  const dados = await presencaRepository.gerarRelatorioPresenca(commonId, mes, ano, diaSemana)
 
   // Processa cada registro calculando percentuais
   const relatorio = dados.map((registro) => {
@@ -136,14 +136,15 @@ export async function gerarRelatorioPresenca(mes, ano, diaSemana = null, somente
 
 /**
  * Gera ranking dos 5 músicos com maior percentual de faltas
+ * @param {number} commonId - ID da comum (obrigatório)
  * @param {number} mes - Mês (1-12)
  * @param {number} ano - Ano (ex: 2024)
- * @param {number|string|null} diaSemana - Dia da semana opcional (número 1-7 ou string como "Domingo", "Segunda", etc.)
+ * @param {string|null} diaSemana - Dia da semana opcional (string como "Domingo", "Segunda", etc.)
  * @returns {Promise<Array>} Array com os 5 músicos com maior percentual de faltas
  */
-export async function gerarRankingFaltas(mes, ano, diaSemana = null) {
+export async function gerarRankingFaltas(commonId, mes, ano, diaSemana = null) {
   // Busca dados usando gerarRelatorioPresenca (sem filtrar somente presentes)
-  const dados = await gerarRelatorioPresenca(mes, ano, diaSemana, false, null)
+  const dados = await gerarRelatorioPresenca(commonId, mes, ano, diaSemana, false)
 
   // Filtra músicos com total_escalas > 0 (ignora músicos sem escalas)
   const comEscalas = dados.filter((item) => item.total_escalas > 0)
@@ -157,14 +158,15 @@ export async function gerarRankingFaltas(mes, ano, diaSemana = null) {
 
 /**
  * Gera ranking de faltas por período com cálculos de percentuais
+ * @param {number} commonId - ID da comum (obrigatório)
  * @param {number} mes - Mês (1-12)
  * @param {number} ano - Ano (ex: 2024)
- * @param {number|string|null} diaSemana - Dia da semana opcional (número 1-7 ou string como "Domingo", "Segunda", etc.)
+ * @param {string|null} diaSemana - Dia da semana opcional (string como "Domingo", "Segunda", etc.)
  * @returns {Promise<Array>} Array com os 5 músicos com maior percentual de faltas no período
  */
-export async function gerarRankingFaltasPeriodo(mes, ano, diaSemana = null) {
+export async function gerarRankingFaltasPeriodo(commonId, mes, ano, diaSemana = null) {
   // Busca dados do repositório
-  const dados = await presencaRepository.gerarRankingFaltasPeriodo(mes, ano, diaSemana)
+  const dados = await presencaRepository.gerarRankingFaltasPeriodo(commonId, mes, ano, diaSemana)
 
   // Processa cada registro calculando percentual de faltas
   const ranking = dados.map((registro) => {
@@ -195,4 +197,15 @@ export async function gerarRankingFaltasPeriodo(mes, ano, diaSemana = null) {
 
   // Retorna apenas os 5 primeiros
   return comEscalas.slice(0, 5)
+}
+
+/**
+ * Gera histórico de presenças e faltas por data
+ * @param {number} commonId - ID da comum (obrigatório)
+ * @param {number} mes - Mês (1-12)
+ * @param {number} ano - Ano (ex: 2024)
+ * @returns {Promise<Array>} Array com histórico por data
+ */
+export async function gerarHistoricoPorData(commonId, mes, ano) {
+  return await presencaRepository.gerarHistoricoPorData(commonId, mes, ano)
 }
