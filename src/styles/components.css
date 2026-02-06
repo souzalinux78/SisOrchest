@@ -384,6 +384,33 @@ button.is-loading::after {
   transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
 }
 
+.kpi-card--success {
+  border-color: rgba(61, 202, 123, 0.5);
+  background: linear-gradient(160deg, rgba(61, 202, 123, 0.08), var(--black-main));
+}
+
+.kpi-card--success .kpi-value {
+  color: #3dca7b;
+}
+
+.kpi-card--warning {
+  border-color: rgba(251, 191, 36, 0.5);
+  background: linear-gradient(160deg, rgba(251, 191, 36, 0.08), var(--black-main));
+}
+
+.kpi-card--warning .kpi-value {
+  color: #fbbf24;
+}
+
+.kpi-card--danger {
+  border-color: rgba(239, 68, 68, 0.5);
+  background: linear-gradient(160deg, rgba(239, 68, 68, 0.08), var(--black-main));
+}
+
+.kpi-card--danger .kpi-value {
+  color: #ef4444;
+}
+
 .kpi-label {
   color: rgba(255, 255, 255, 0.7);
   font-size: 0.85rem;
@@ -527,6 +554,14 @@ button.is-loading::after {
   color: var(--gold-main);
 }
 
+.report-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.4rem;
+  margin-top: 1.6rem;
+  margin-bottom: 1.6rem;
+}
+
 .report-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -637,4 +672,42 @@ button.is-loading::after {
 .report-card h3 {
   margin: 0 0 0.8rem;
   color: var(--gold-main);
+}
+
+.report-alert-banner {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(239, 68, 68, 0.05));
+  border: 2px solid rgba(239, 68, 68, 0.5);
+  border-radius: 16px;
+  padding: 1rem 1.4rem;
+  margin-bottom: 1.6rem;
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.alert-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  color: #ef4444;
+}
+
+.alert-icon {
+  font-size: 1.4rem;
+  flex-shrink: 0;
+}
+
+.alert-message {
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.5;
 }

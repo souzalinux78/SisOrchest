@@ -62,6 +62,17 @@ export async function salvarPresenca(serviceId, musicianId, status, serviceWeekd
 }
 
 /**
+ * Lista cultos que possuem pelo menos uma presença registrada
+ * @param {number} mes - Mês (1-12)
+ * @param {number} ano - Ano (ex: 2024)
+ * @param {number|string|null} diaSemana - Dia da semana opcional (número 1-7 ou string como "Domingo")
+ * @returns {Promise<Array>} Array com cultos que possuem presenças registradas
+ */
+export async function listarCultosComPresenca(mes, ano, diaSemana = null) {
+  return await presencaRepository.listarCultosComPresenca(mes, ano, diaSemana)
+}
+
+/**
  * Gera relatório de presença com cálculos de percentuais
  * @param {number} mes - Mês (1-12)
  * @param {number} ano - Ano (ex: 2024)

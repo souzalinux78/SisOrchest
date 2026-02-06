@@ -65,3 +65,56 @@
   padding: 1rem 0.5rem;
   color: rgba(255, 255, 255, 0.6);
 }
+
+.sortable-header {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  padding-right: 1.5rem;
+  transition: background-color 0.2s ease;
+}
+
+.sortable-header:hover {
+  background: rgba(212, 175, 55, 0.2);
+}
+
+.sort-indicator {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.sortable-header[data-sort]::after {
+  content: '↕';
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.row-high-absence {
+  background: rgba(239, 68, 68, 0.15) !important;
+}
+
+.row-high-absence:hover td {
+  background: rgba(239, 68, 68, 0.25) !important;
+}
+
+.badge-excellent {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.2rem 0.5rem;
+  background: rgba(61, 202, 123, 0.2);
+  border: 1px solid rgba(61, 202, 123, 0.4);
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #3dca7b;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}

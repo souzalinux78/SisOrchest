@@ -17,6 +17,41 @@ export const reportsView = `
         <select id="report-musician"></select>
       </label>
       <label>
+        <span>Modo</span>
+        <select id="report-mode">
+          <option value="culto">Relatório por Culto</option>
+          <option value="mensal">Relatório Mensal</option>
+        </select>
+      </label>
+      <label id="report-date-label" style="display: none;">
+        <span>Data do culto</span>
+        <select id="report-date"></select>
+      </label>
+      <label id="report-mes-label" style="display: none;">
+        <span>Mês</span>
+        <select id="report-mes">
+          <option value="">Selecione</option>
+          <option value="1">Janeiro</option>
+          <option value="2">Fevereiro</option>
+          <option value="3">Março</option>
+          <option value="4">Abril</option>
+          <option value="5">Maio</option>
+          <option value="6">Junho</option>
+          <option value="7">Julho</option>
+          <option value="8">Agosto</option>
+          <option value="9">Setembro</option>
+          <option value="10">Outubro</option>
+          <option value="11">Novembro</option>
+          <option value="12">Dezembro</option>
+        </select>
+      </label>
+      <label id="report-ano-label" style="display: none;">
+        <span>Ano</span>
+        <select id="report-ano">
+          <option value="">Selecione</option>
+        </select>
+      </label>
+      <label id="report-weekday-label" style="display: none;">
         <span>Dia da semana</span>
         <select id="report-weekday">
           <option value="">Todos</option>
@@ -54,6 +89,32 @@ export const reportsView = `
       </div>
     </div>
 
+    <div id="report-alert-banner" class="report-alert-banner" style="display: none;">
+      <div class="alert-banner-content">
+        <span class="alert-icon">⚠️</span>
+        <span class="alert-message">Atenção: Existem músicos com percentual de faltas acima de 40% no período selecionado.</span>
+      </div>
+    </div>
+
+    <div class="report-kpis" id="report-kpis">
+      <div class="kpi-card kpi-card--total">
+        <div class="kpi-value" id="kpi-total-musicos">--</div>
+        <div class="kpi-label">Total de Músicos</div>
+      </div>
+      <div class="kpi-card kpi-card--media">
+        <div class="kpi-value" id="kpi-media-presenca">--</div>
+        <div class="kpi-label">Média Geral de Presença (%)</div>
+      </div>
+      <div class="kpi-card kpi-card--faltas">
+        <div class="kpi-value" id="kpi-total-faltas">--</div>
+        <div class="kpi-label">Total de Faltas no Período</div>
+      </div>
+      <div class="kpi-card kpi-card--risco">
+        <div class="kpi-value" id="kpi-musicos-risco">--</div>
+        <div class="kpi-label">Músicos em Risco (>30% faltas)</div>
+      </div>
+    </div>
+
     <div class="report-chart">
       <canvas id="report-chart"></canvas>
     </div>
@@ -61,13 +122,14 @@ export const reportsView = `
     <div class="data-card">
       <h3>Detalhamento por músico</h3>
       <table class="data-table">
-        <thead>
+        <thead id="reports-table-header">
           <tr>
             <th>Músico</th>
             <th>Comum</th>
             <th>Presenças</th>
             <th>Total de cultos</th>
-            <th>Percentual</th>
+            <th data-sortable data-sort="percentual_presenca" class="sortable-header">Percentual <span class="sort-indicator"></span></th>
+            <th data-sortable data-sort="total_faltas" class="sortable-header">Total Faltas <span class="sort-indicator"></span></th>
           </tr>
         </thead>
         <tbody id="reports-table-body"></tbody>
@@ -87,6 +149,17 @@ export const reportsView = `
         </thead>
         <tbody id="reports-history-body"></tbody>
       </table>
+    </div>
+
+    <div class="data-card">
+      <h3>Top 5 músicos que mais faltaram</h3>
+      <div id="reports-ranking-faltas">
+        <p>Aguardando dados do ranking...</p>
+      </div>
+    </div>
+
+    <div class="data-card">
+      <div id="reports-ranking-chart"></div>
     </div>
   </section>
 `

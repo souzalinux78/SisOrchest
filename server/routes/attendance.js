@@ -240,8 +240,68 @@ router.post('/', async (req, res) => {
 
 router.get('/relatorios/presenca', async (req, res) => {
   try {
-    const { mes, ano, diaSemana, somentePresentes, ocorrenciaSemana } = req.query ?? {}
+    const { mes, ano, diaSemana, somentePresentes, ocorrenciaSemana, cultoId } = req.query ?? {}
 
+    // Se cultoId for informado, usa lógica específica para um culto
+    if (cultoId !== undefined && cultoId !== null && cultoId !== '') {
+      const cultoIdNum = Number(cultoId)
+      if (!Number.isInteger(cultoIdNum) || cultoIdNum <= 0) {
+        return responseHandler.error(res, 'ID do culto inválido.', 400)
+      }
+
+      // Processa somentePresentes (opcional, boolean)
+      const somentePresentesBool = somentePresentes === 'true' || somentePresentes === true
+
+      // Busca presenças do culto específico
+      const attendance = await presencaService.listarPresencas({ service_id: cultoIdNum })
+
+      // Agrupa por músico
+      const byMusician = new Map()
+      attendance.forEach((item) => {
+        if (!byMusician.has(item.musician_id)) {
+          byMusician.set(item.musician_id, {
+            id: item.musician_id,
+            nome: item.name || '--',
+            total_escalas: 0,
+            total_presencas: 0,
+            total_faltas: 0,
+          })
+        }
+        const musician = byMusician.get(item.musician_id)
+        musician.total_escalas += 1
+        if (item.status === 'present') {
+          musician.total_presencas += 1
+        } else {
+          musician.total_faltas += 1
+        }
+      })
+
+      // Calcula percentuais
+      let data = Array.from(byMusician.values()).map((musician) => {
+        const totalEscalas = musician.total_escalas || 0
+        const percentualPresenca = totalEscalas > 0
+          ? Number(((musician.total_presencas / totalEscalas) * 100).toFixed(2))
+          : 0
+        const percentualFaltas = totalEscalas > 0
+          ? Number(((musician.total_faltas / totalEscalas) * 100).toFixed(2))
+          : 0
+
+        return {
+          ...musician,
+          percentual_presenca: percentualPresenca,
+          percentual_faltas: percentualFaltas,
+        }
+      })
+
+      // Filtra apenas músicos presentes se solicitado
+      if (somentePresentesBool) {
+        data = data.filter((musician) => musician.total_presencas > 0)
+      }
+
+      return responseHandler.success(res, data)
+    }
+
+    // Lógica original para relatório por período
     // Validação: mes é obrigatório
     if (mes === undefined || mes === null || mes === '') {
       return responseHandler.error(res, 'Mês é obrigatório.', 400)
@@ -385,6 +445,55 @@ router.get('/relatorios/ranking-faltas-periodo', async (req, res) => {
       stack: error.stack,
     })
     return responseHandler.error(res, 'Erro ao gerar ranking de faltas por período.', 500)
+  }
+})
+
+router.get('/relatorios/cultos-com-presenca', async (req, res) => {
+  try {
+    const { mes, ano, diaSemana } = req.query ?? {}
+
+    // Validação: mes é obrigatório
+    if (mes === undefined || mes === null || mes === '') {
+      return responseHandler.error(res, 'Mês é obrigatório.', 400)
+    }
+
+    const mesNum = Number(mes)
+    if (!Number.isInteger(mesNum) || mesNum < 1 || mesNum > 12) {
+      return responseHandler.error(res, 'Mês inválido. Deve ser um número entre 1 e 12.', 400)
+    }
+
+    // Validação: ano é obrigatório
+    if (ano === undefined || ano === null || ano === '') {
+      return responseHandler.error(res, 'Ano é obrigatório.', 400)
+    }
+
+    const anoNum = Number(ano)
+    if (!Number.isInteger(anoNum) || anoNum < 1900 || anoNum > 2100) {
+      return responseHandler.error(res, 'Ano inválido. Deve ser um número entre 1900 e 2100.', 400)
+    }
+
+    // Processa diaSemana (opcional) - pode ser número (1-7) ou string (nome do dia)
+    let diaSemanaParam = null
+    if (diaSemana !== undefined && diaSemana !== null && diaSemana !== '') {
+      // Se for número, mantém como número; se for string, mantém como string
+      const diaSemanaNum = Number(diaSemana)
+      if (Number.isInteger(diaSemanaNum) && diaSemanaNum >= 1 && diaSemanaNum <= 7) {
+        diaSemanaParam = diaSemanaNum
+      } else {
+        diaSemanaParam = diaSemana
+      }
+    }
+
+    const data = await presencaService.listarCultosComPresenca(mesNum, anoNum, diaSemanaParam)
+
+    return responseHandler.success(res, data)
+  } catch (error) {
+    console.error('Erro ao listar cultos com presença.', {
+      query: req.query,
+      error: error.message,
+      stack: error.stack,
+    })
+    return responseHandler.error(res, 'Erro ao listar cultos com presença.', 500)
   }
 })
 
