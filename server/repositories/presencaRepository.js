@@ -149,7 +149,76 @@ export const buscarMusicosEscalados = async (serviceId) => {
 }
 
 /**
+ * Verifica se um registro de presença já existe
+ * @param {number} serviceId - ID do culto
+ * @param {number} musicianId - ID do músico
+ * @param {string} serviceDate - Data do culto (formato YYYY-MM-DD)
+ * @returns {Promise<boolean>} true se existe, false caso contrário
+ */
+export const verificarRegistroExiste = async (serviceId, musicianId, serviceDate) => {
+  const [rows] = await pool.query(
+    `SELECT id FROM attendance 
+     WHERE service_id = ? 
+     AND service_date = ? 
+     AND musician_id = ? 
+     LIMIT 1`,
+    [serviceId, serviceDate, musicianId],
+  )
+  return (rows ?? []).length > 0
+}
+
+/**
+ * Busca todos os músicos ativos de uma comum
+ * @param {number} commonId - ID da comum
+ * @returns {Promise<Array>} Array com IDs dos músicos ativos
+ */
+export const buscarMusicosAtivosComum = async (commonId) => {
+  const [rows] = await pool.query(
+    `SELECT id FROM musicians 
+     WHERE common_id = ? AND status = 'active' 
+     ORDER BY name ASC`,
+    [commonId],
+  )
+  return rows ?? []
+}
+
+/**
+ * Insere registro de presença com status 'absent'
+ * @param {number} serviceId - ID do culto
+ * @param {number} musicianId - ID do músico
+ * @param {string} serviceWeekday - Dia da semana do culto
+ * @param {string} serviceDate - Data do culto (formato YYYY-MM-DD)
+ * @returns {Promise<void>}
+ */
+export const inserirRegistroAusente = async (serviceId, musicianId, serviceWeekday, serviceDate) => {
+  await pool.query(
+    `INSERT INTO attendance 
+     (service_id, musician_id, status, service_weekday, service_date)
+     VALUES (?, ?, 'absent', ?, ?)`,
+    [serviceId, musicianId, serviceWeekday, serviceDate],
+  )
+}
+
+/**
+ * Busca IDs dos músicos que já têm registro para um culto específico
+ * @param {number} serviceId - ID do culto
+ * @param {string} serviceDate - Data do culto (formato YYYY-MM-DD)
+ * @returns {Promise<Set<number>>} Set com IDs dos músicos que já têm registro
+ */
+export const buscarMusicosComRegistro = async (serviceId, serviceDate) => {
+  const [rows] = await pool.query(
+    `SELECT musician_id FROM attendance 
+     WHERE service_id = ? 
+     AND service_date = ?`,
+    [serviceId, serviceDate],
+  )
+  const ids = (rows ?? []).map(row => Number(row.musician_id))
+  return new Set(ids)
+}
+
+/**
  * Salva presenças e faltas para todos os músicos escalados de um culto
+ * Garante que TODOS os músicos ativos da comum tenham registro
  * @param {number} serviceId - ID do culto
  * @param {Array<number>} presentesIds - Array com IDs dos músicos presentes
  * @param {string} serviceWeekday - Dia da semana do culto
@@ -157,34 +226,89 @@ export const buscarMusicosEscalados = async (serviceId) => {
  * @returns {Promise<void>}
  */
 export const salvarPresencasCulto = async (serviceId, presentesIds, serviceWeekday, serviceDate) => {
-  // Busca todos os músicos escalados
-  const musicosEscalados = await buscarMusicosEscalados(serviceId)
-  const presentesSet = new Set(presentesIds.map(id => Number(id)))
+  // 1. Busca o common_id do service
+  const [serviceRows] = await pool.query(
+    'SELECT common_id FROM services WHERE id = ? LIMIT 1',
+    [serviceId],
+  )
 
-  // Prepara os dados para inserção em lote
-  const valores = musicosEscalados.map((musico) => {
-    const status = presentesSet.has(musico.id) ? 'present' : 'absent'
-    return [serviceId, musico.id, status, serviceWeekday, serviceDate]
-  })
+  if (!serviceRows || serviceRows.length === 0) {
+    throw new Error('Culto não encontrado.')
+  }
 
-  if (valores.length === 0) {
+  const commonId = serviceRows[0].common_id
+
+  // 2. Busca todos os músicos ativos da comum
+  const musicosAtivos = await buscarMusicosAtivosComum(commonId)
+
+  if (musicosAtivos.length === 0) {
     return
   }
 
-  // Insere ou atualiza em lote usando INSERT ... ON DUPLICATE KEY UPDATE
-  const placeholders = valores.map(() => '(?, ?, ?, ?, ?)').join(', ')
-  const params = valores.flat()
+  // 3. Busca quais músicos já têm registro (em uma única query para melhor performance)
+  const musicosComRegistro = await buscarMusicosComRegistro(serviceId, serviceDate)
 
-  await pool.query(
-    `INSERT INTO attendance (service_id, musician_id, status, service_weekday, service_date)
-     VALUES ${placeholders}
-     ON DUPLICATE KEY UPDATE 
-       status = VALUES(status), 
-       service_weekday = VALUES(service_weekday), 
-       service_date = VALUES(service_date), 
-       recorded_at = CURRENT_TIMESTAMP`,
-    params,
-  )
+  // 4. Prepara lista de músicos que precisam ter registro criado (ausentes)
+  const musicosParaCriar = musicosAtivos.filter(m => !musicosComRegistro.has(m.id))
+
+  // 5. Cria registros ausentes em lote (se houver)
+  if (musicosParaCriar.length > 0) {
+    const valores = musicosParaCriar.map(m => [serviceId, m.id, 'absent', serviceWeekday, serviceDate])
+    const placeholders = valores.map(() => '(?, ?, ?, ?, ?)').join(', ')
+    const params = valores.flat()
+
+    await pool.query(
+      `INSERT INTO attendance 
+       (service_id, musician_id, status, service_weekday, service_date)
+       VALUES ${placeholders}`,
+      params,
+    )
+  }
+
+  // 6. Atualiza para 'present' apenas os músicos que foram marcados
+  const presentesSet = new Set(presentesIds.map(id => Number(id)))
+  
+  if (presentesSet.size > 0) {
+    // Filtra apenas músicos que existem na lista de ativos
+    const musicosParaAtualizar = Array.from(presentesSet).filter(id => 
+      musicosAtivos.some(m => m.id === id)
+    )
+
+    if (musicosParaAtualizar.length > 0) {
+      const placeholders = musicosParaAtualizar.map(() => '?').join(', ')
+      const params = [serviceId, serviceDate, ...musicosParaAtualizar]
+
+      await pool.query(
+        `UPDATE attendance
+         SET status = 'present', recorded_at = CURRENT_TIMESTAMP
+         WHERE service_id = ?
+         AND service_date = ?
+         AND musician_id IN (${placeholders})`,
+        params,
+      )
+    }
+  }
+
+  // 7. Garante que músicos não marcados como presentes tenham status 'absent'
+  // (caso tenham sido alterados de 'present' para 'absent')
+  const musicosNaoPresentes = musicosAtivos
+    .filter(m => !presentesSet.has(m.id))
+    .map(m => m.id)
+
+  if (musicosNaoPresentes.length > 0) {
+    const placeholders = musicosNaoPresentes.map(() => '?').join(', ')
+    const params = [serviceId, serviceDate, ...musicosNaoPresentes]
+
+    await pool.query(
+      `UPDATE attendance
+       SET status = 'absent', recorded_at = CURRENT_TIMESTAMP
+       WHERE service_id = ?
+       AND service_date = ?
+       AND musician_id IN (${placeholders})
+       AND status = 'present'`,
+      params,
+    )
+  }
 }
 
 /**
