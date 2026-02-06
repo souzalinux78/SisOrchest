@@ -226,15 +226,22 @@ export const api = {
     if (params.weekday !== undefined && params.weekday !== null && params.weekday !== '') {
       queryParams.set('weekday', String(params.weekday))
     }
-    return request<
-      Array<{
+    return request<{
+      ranking_faltas: Array<{
         musician_id: number
         musician_name: string
-        total_presencas: number
-        total_faltas: number
+        presencas: number
+        faltas: number
         percentual_presenca: number
       }>
-    >(`/reports/ranking?${queryParams.toString()}`)
+      ranking_presencas: Array<{
+        musician_id: number
+        musician_name: string
+        presencas: number
+        faltas: number
+        percentual_presenca: number
+      }>
+    }>(`/reports/ranking?${queryParams.toString()}`)
   },
   getReportsHistory: (params: { common_id: number; month: number; year: number; weekday?: string | null }) => {
     const queryParams = new URLSearchParams()

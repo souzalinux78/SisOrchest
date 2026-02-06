@@ -207,3 +207,45 @@ export async function gerarResumoExecutivo(commonId, month, year, weekday = null
     percentual_presenca: percentualPresenca,
   }
 }
+
+/**
+ * Gera ranking de músicos por faltas e presenças
+ * @param {number} commonId - ID da comum
+ * @param {number} month - Mês (1-12)
+ * @param {number} year - Ano
+ * @returns {Promise<Object>} Objeto com ranking_faltas e ranking_presencas
+ */
+export async function gerarRankingMusicos(commonId, month, year) {
+  const dados = await presencaRepository.buscarRankingMusicos(commonId, month, year)
+
+  // Processa dados e calcula percentuais
+  const processados = dados.map((item) => {
+    const presencas = Number(item.presencas) || 0
+    const faltas = Number(item.faltas) || 0
+    const total = presencas + faltas
+    const percentualPresenca = total === 0 ? 0 : Number(((presencas / total) * 100).toFixed(2))
+
+    return {
+      musician_id: Number(item.id) || 0,
+      musician_name: String(item.name || ''),
+      presencas,
+      faltas,
+      percentual_presenca: percentualPresenca,
+    }
+  })
+
+  // Ranking por faltas (DESC) - Top 10
+  const rankingFaltas = [...processados]
+    .sort((a, b) => b.faltas - a.faltas)
+    .slice(0, 10)
+
+  // Ranking por presenças (DESC) - Top 10
+  const rankingPresencas = [...processados]
+    .sort((a, b) => b.presencas - a.presencas)
+    .slice(0, 10)
+
+  return {
+    ranking_faltas: rankingFaltas,
+    ranking_presencas: rankingPresencas,
+  }
+}

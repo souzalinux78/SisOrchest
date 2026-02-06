@@ -14,9 +14,14 @@ type ReportSummary = {
 type RankingItem = {
   musician_id: number
   musician_name: string
-  total_presencas: number
-  total_faltas: number
+  presencas: number
+  faltas: number
   percentual_presenca: number
+}
+
+type RankingMusicos = {
+  ranking_faltas: RankingItem[]
+  ranking_presencas: RankingItem[]
 }
 
 type HistoryItem = {
@@ -37,7 +42,7 @@ function Reports() {
   const [month, setMonth] = useState<number>(currentMonth)
   const [year, setYear] = useState<number>(currentYear)
   const [summary, setSummary] = useState<ReportSummary | null>(null)
-  const [ranking, setRanking] = useState<RankingItem[]>([])
+  const [ranking, setRanking] = useState<RankingMusicos | null>(null)
   const [history, setHistory] = useState<HistoryItem[]>([])
   const [loading, setLoading] = useState<boolean>(false)
   const [loadingCommons, setLoadingCommons] = useState<boolean>(true)
@@ -74,7 +79,7 @@ function Reports() {
     setLoading(true)
     setError(null)
     setSummary(null)
-    setRanking([])
+    setRanking(null)
     setHistory([])
 
     try {
@@ -97,7 +102,11 @@ function Reports() {
       ])
 
       setSummary(summaryData)
-      setRanking(Array.isArray(rankingData) ? rankingData : [])
+      setRanking(
+        rankingData && typeof rankingData === 'object' && 'ranking_faltas' in rankingData
+          ? (rankingData as RankingMusicos)
+          : null,
+      )
       setHistory(Array.isArray(historyData) ? historyData : [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao gerar relatório')
@@ -253,15 +262,29 @@ function Reports() {
         </div>
       )}
 
-      {(summary || ranking.length > 0 || history.length > 0) && (
+      {summary && (
         <div style={{ marginTop: '2rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-          {ranking.length > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+            <button
+              className="primary"
+              onClick={() => {
+                const url = `/api/reports/pdf?common_id=${commonId}&month=${month}&year=${year}`
+                window.open(url, '_blank')
+              }}
+              disabled={!summary}
+            >
+              Exportar PDF
+            </button>
+          </div>
+
+          {ranking && ranking.ranking_faltas.length > 0 && (
             <div className="form-card">
-              <h3>Ranking de Faltas</h3>
+              <h3>Ranking de Faltas (Top 10)</h3>
               <div style={{ overflowX: 'auto' }}>
                 <table className="data-table">
                   <thead>
                     <tr>
+                      <th>Posição</th>
                       <th>Músico</th>
                       <th>Presenças</th>
                       <th>Faltas</th>
@@ -269,12 +292,13 @@ function Reports() {
                     </tr>
                   </thead>
                   <tbody>
-                    {ranking.map((item) => (
+                    {ranking.ranking_faltas.map((item, index) => (
                       <tr key={item.musician_id}>
+                        <td>{index + 1}º</td>
                         <td>{item.musician_name}</td>
-                        <td>{item.total_presencas}</td>
-                        <td style={{ color: item.total_faltas > 0 ? '#ef4444' : 'inherit' }}>
-                          {item.total_faltas}
+                        <td>{item.presencas}</td>
+                        <td style={{ color: item.faltas > 0 ? '#ef4444' : 'inherit' }}>
+                          {item.faltas}
                         </td>
                         <td>{item.percentual_presenca.toFixed(2)}%</td>
                       </tr>
@@ -285,9 +309,39 @@ function Reports() {
             </div>
           )}
 
-          {ranking.length === 0 && summary && (
+          {ranking && ranking.ranking_presencas.length > 0 && (
             <div className="form-card">
-              <h3>Ranking de Faltas</h3>
+              <h3>Ranking de Presenças (Top 10)</h3>
+              <div style={{ overflowX: 'auto' }}>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Posição</th>
+                      <th>Músico</th>
+                      <th>Presenças</th>
+                      <th>Faltas</th>
+                      <th>% Presença</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ranking.ranking_presencas.map((item, index) => (
+                      <tr key={item.musician_id}>
+                        <td>{index + 1}º</td>
+                        <td>{item.musician_name}</td>
+                        <td style={{ color: '#3dca7b' }}>{item.presencas}</td>
+                        <td>{item.faltas}</td>
+                        <td>{item.percentual_presenca.toFixed(2)}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {(!ranking || (ranking.ranking_faltas.length === 0 && ranking.ranking_presencas.length === 0)) && (
+            <div className="form-card">
+              <h3>Ranking de Músicos</h3>
               <p style={{ padding: '1rem', textAlign: 'center', color: 'rgba(255, 255, 255, 0.6)' }}>
                 Nenhum dado de ranking disponível para o período selecionado.
               </p>

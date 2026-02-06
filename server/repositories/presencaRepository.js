@@ -484,3 +484,33 @@ export const buscarDadosRelatorioExecutivo = async (commonId, month, year, weekd
     total_faltas: totalFaltas,
   }
 }
+
+/**
+ * Busca ranking de músicos por faltas e presenças
+ * @param {number} commonId - ID da comum
+ * @param {number} month - Mês (1-12)
+ * @param {number} year - Ano
+ * @returns {Promise<Array>} Array com ranking de músicos
+ */
+export const buscarRankingMusicos = async (commonId, month, year) => {
+  const [rows] = await pool.query(
+    `SELECT
+       m.id,
+       m.name,
+       COUNT(DISTINCT CASE WHEN a.status = 'present' THEN a.service_id END) AS presencas,
+       COUNT(DISTINCT CASE WHEN a.status = 'absent' THEN a.service_id END) AS faltas
+     FROM musicians m
+     LEFT JOIN attendance a
+       ON a.musician_id = m.id
+       AND MONTH(a.service_date) = ?
+       AND YEAR(a.service_date) = ?
+     WHERE m.common_id = ?
+       AND m.status = 'active'
+     GROUP BY m.id, m.name
+     HAVING presencas > 0 OR faltas > 0
+     ORDER BY faltas DESC, presencas ASC`,
+    [month, year, commonId],
+  )
+
+  return rows ?? []
+}

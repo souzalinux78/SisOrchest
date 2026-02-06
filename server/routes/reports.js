@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import * as presencaService from '../services/presencaService.js'
+import * as relatorioPdfService from '../services/relatorioPdfService.js'
 import * as responseHandler from '../utils/responseHandler.js'
 
 const router = Router()
@@ -119,15 +120,10 @@ router.get('/ranking', async (req, res) => {
       return responseHandler.error(res, 'weekday deve ser um dia da semana válido', 400)
     }
 
-    // Busca dados do ranking
-    const ranking = await presencaService.gerarRankingFaltasPeriodo(
-      commonId,
-      monthNum,
-      yearNum,
-      weekdayStr,
-    )
+    // Busca dados do ranking de músicos
+    const ranking = await presencaService.gerarRankingMusicos(commonId, monthNum, yearNum)
 
-    return responseHandler.success(res, ranking, 'Ranking de faltas gerado com sucesso')
+    return responseHandler.success(res, ranking, 'Ranking de músicos gerado com sucesso')
   } catch (error) {
     console.error('Erro ao gerar ranking de faltas:', error)
     return responseHandler.error(res, 'Erro ao gerar ranking de faltas', 500)
@@ -196,6 +192,82 @@ router.get('/history', async (req, res) => {
   } catch (error) {
     console.error('Erro ao gerar histórico por data:', error)
     return responseHandler.error(res, 'Erro ao gerar histórico por data', 500)
+  }
+})
+
+/**
+ * GET /api/reports/pdf
+ * Gera relatório executivo em PDF
+ * Query params:
+ * - common_id (obrigatório): ID da comum
+ * - month (obrigatório): Mês (1-12)
+ * - year (obrigatório): Ano
+ */
+router.get('/pdf', async (req, res) => {
+  try {
+    const { common_id, month, year } = req.query
+
+    // Validação de parâmetros obrigatórios
+    if (!common_id) {
+      return responseHandler.error(res, 'Parâmetro common_id é obrigatório', 400)
+    }
+
+    if (!month) {
+      return responseHandler.error(res, 'Parâmetro month é obrigatório', 400)
+    }
+
+    if (!year) {
+      return responseHandler.error(res, 'Parâmetro year é obrigatório', 400)
+    }
+
+    // Validação de tipos
+    const commonId = Number(common_id)
+    const monthNum = Number(month)
+    const yearNum = Number(year)
+
+    if (Number.isNaN(commonId) || commonId <= 0) {
+      return responseHandler.error(res, 'common_id deve ser um número positivo', 400)
+    }
+
+    if (Number.isNaN(monthNum) || monthNum < 1 || monthNum > 12) {
+      return responseHandler.error(res, 'month deve ser um número entre 1 e 12', 400)
+    }
+
+    if (Number.isNaN(yearNum) || yearNum < 1900 || yearNum > 2100) {
+      return responseHandler.error(res, 'year deve ser um número válido', 400)
+    }
+
+    // Gera PDF
+    const doc = await relatorioPdfService.gerarPdfRelatorioExecutivo(commonId, monthNum, yearNum)
+
+    // Configura headers para download
+    const meses = [
+      '',
+      'Janeiro',
+      'Fevereiro',
+      'Março',
+      'Abril',
+      'Maio',
+      'Junho',
+      'Julho',
+      'Agosto',
+      'Setembro',
+      'Outubro',
+      'Novembro',
+      'Dezembro',
+    ]
+    const nomeMes = meses[monthNum] || monthNum
+    const filename = `relatorio-executivo-${nomeMes}-${yearNum}.pdf`
+
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+
+    // Pipe do PDFDocument direto para a response
+    doc.pipe(res)
+    doc.end()
+  } catch (error) {
+    console.error('Erro ao gerar PDF executivo:', error)
+    return responseHandler.error(res, 'Erro ao gerar PDF executivo', 500)
   }
 })
 
