@@ -237,4 +237,53 @@ router.post('/', async (req, res) => {
   }
 })
 
+router.get('/relatorios/presenca', async (req, res) => {
+  try {
+    const { mes, ano, diaSemana, somentePresentes } = req.query ?? {}
+
+    // Validação: mes é obrigatório
+    if (mes === undefined || mes === null || mes === '') {
+      return responseHandler.error(res, 'Mês é obrigatório.', 400)
+    }
+
+    const mesNum = Number(mes)
+    if (!Number.isInteger(mesNum) || mesNum < 1 || mesNum > 12) {
+      return responseHandler.error(res, 'Mês inválido. Deve ser um número entre 1 e 12.', 400)
+    }
+
+    // Validação: ano é obrigatório
+    if (ano === undefined || ano === null || ano === '') {
+      return responseHandler.error(res, 'Ano é obrigatório.', 400)
+    }
+
+    const anoNum = Number(ano)
+    if (!Number.isInteger(anoNum) || anoNum < 1900 || anoNum > 2100) {
+      return responseHandler.error(res, 'Ano inválido. Deve ser um número entre 1900 e 2100.', 400)
+    }
+
+    // Processa diaSemana (opcional)
+    let diaSemanaNum = null
+    if (diaSemana !== undefined && diaSemana !== null && diaSemana !== '') {
+      diaSemanaNum = Number(diaSemana)
+      if (!Number.isInteger(diaSemanaNum) || diaSemanaNum < 1 || diaSemanaNum > 7) {
+        return responseHandler.error(res, 'Dia da semana inválido. Deve ser um número entre 1 (Domingo) e 7 (Sábado).', 400)
+      }
+    }
+
+    // Processa somentePresentes (opcional, boolean)
+    const somentePresentesBool = somentePresentes === 'true' || somentePresentes === true
+
+    const data = await presencaService.gerarRelatorioPresenca(mesNum, anoNum, diaSemanaNum, somentePresentesBool)
+
+    return responseHandler.success(res, data)
+  } catch (error) {
+    console.error('Erro ao gerar relatório de presença.', {
+      query: req.query,
+      error: error.message,
+      stack: error.stack,
+    })
+    return responseHandler.error(res, 'Erro ao gerar relatório de presença.', 500)
+  }
+})
+
 export { router as attendanceRouter }
