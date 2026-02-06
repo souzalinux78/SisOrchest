@@ -163,37 +163,41 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
-  getCultosComPresenca: (params: { mes: number; ano: number; diaSemana?: number | null }) => {
+  getCultosComPresenca: (params: { mes: number; ano: number; common_id: number; diaSemana?: number | null }) => {
     const queryParams = new URLSearchParams()
     queryParams.set('mes', String(params.mes))
     queryParams.set('ano', String(params.ano))
+    queryParams.set('common_id', String(params.common_id))
     if (params.diaSemana !== undefined && params.diaSemana !== null) {
       queryParams.set('diaSemana', String(params.diaSemana))
     }
     return request<Array<{ id: number; data: string }>>(`/attendance/relatorios/cultos-com-presenca?${queryParams.toString()}`)
   },
-  getRelatorioPresenca: (params: { cultoId: number; somentePresentes?: boolean }) => {
+  getRelatorioPresenca: (params: { cultoId: number; common_id: number; somentePresentes?: boolean }) => {
     const queryParams = new URLSearchParams()
     queryParams.set('cultoId', String(params.cultoId))
+    queryParams.set('common_id', String(params.common_id))
     if (params.somentePresentes !== undefined) {
       queryParams.set('somentePresentes', String(params.somentePresentes))
     }
     return request<Array<{ id: number; nome: string; total_escalas: number; total_presencas: number; total_faltas: number; percentual_presenca: number; percentual_faltas: number }>>(`/attendance/relatorios/presenca?${queryParams.toString()}`)
   },
-  getRankingFaltasPeriodo: (params: { mes: number; ano: number; diaSemana?: number | null }) => {
+  getRankingFaltasPeriodo: (params: { mes: number; ano: number; common_id: number; diaSemana?: string | null }) => {
     const queryParams = new URLSearchParams()
     queryParams.set('mes', String(params.mes))
     queryParams.set('ano', String(params.ano))
-    if (params.diaSemana !== undefined && params.diaSemana !== null) {
+    queryParams.set('common_id', String(params.common_id))
+    if (params.diaSemana !== undefined && params.diaSemana !== null && params.diaSemana !== '') {
       queryParams.set('diaSemana', String(params.diaSemana))
     }
     return request<Array<{ id: number; nome: string; total_escalas: number; total_presencas: number; total_faltas: number; percentual_faltas: number }>>(`/attendance/relatorios/ranking-faltas-periodo?${queryParams.toString()}`)
   },
-  getRelatorioPresencaMensal: (params: { mes: number; ano: number; diaSemana?: number | null }) => {
+  getRelatorioPresencaMensal: (params: { mes: number; ano: number; common_id: number; diaSemana?: string | null }) => {
     const queryParams = new URLSearchParams()
     queryParams.set('mes', String(params.mes))
     queryParams.set('ano', String(params.ano))
-    if (params.diaSemana !== undefined && params.diaSemana !== null) {
+    queryParams.set('common_id', String(params.common_id))
+    if (params.diaSemana !== undefined && params.diaSemana !== null && params.diaSemana !== '') {
       queryParams.set('diaSemana', String(params.diaSemana))
     }
     return request<Array<{ id: number; nome: string; total_escalas: number; total_presencas: number; total_faltas: number; percentual_presenca: number; percentual_faltas: number }>>(`/attendance/relatorios/presenca?${queryParams.toString()}`)

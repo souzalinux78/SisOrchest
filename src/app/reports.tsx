@@ -971,7 +971,17 @@ const loadReportData = async (filters: { commonId?: number | null; musicianId?: 
   try {
     // Se cultoId foi selecionado, usa o novo endpoint
     if (filters.cultoId) {
-      const reportData = await api.getRelatorioPresenca({ cultoId: filters.cultoId, somentePresentes: true })
+      // Validação: common_id é obrigatório
+      if (!commonId) {
+        setText('reports-summary', 'Erro: Selecione uma comum antes de gerar o relatório.')
+        return
+      }
+
+      const reportData = await api.getRelatorioPresenca({ 
+        cultoId: filters.cultoId, 
+        common_id: commonId,
+        somentePresentes: true 
+      })
       
       // A função request já extrai data automaticamente, então reportData já é o array
       // Filtra apenas músicos presentes (já vem filtrado do backend, mas garantimos aqui também)
@@ -1049,48 +1059,47 @@ const loadReportData = async (filters: { commonId?: number | null; musicianId?: 
 
     // Busca ranking de faltas e dados do relatório mensal para KPIs
     try {
-      const mesSelect = document.getElementById('report-mes') as HTMLSelectElement | null
-      const anoSelect = document.getElementById('report-ano') as HTMLSelectElement | null
-      const diaSemanaSelect = document.getElementById('report-weekday') as HTMLSelectElement | null
-
-      if (mesSelect && anoSelect && mesSelect.value && anoSelect.value) {
-        const mes = Number(mesSelect.value)
-        const ano = Number(anoSelect.value)
-        let diaSemanaNum: number | null = null
-
-        if (diaSemanaSelect?.value) {
-          const diaSemanaMap: Record<string, number> = {
-            'Domingo': 1,
-            'Segunda': 2,
-            'Terça': 3,
-            'Quarta': 4,
-            'Quinta': 5,
-            'Sexta': 6,
-            'Sábado': 7,
-          }
-          diaSemanaNum = diaSemanaMap[diaSemanaSelect.value] || null
-        }
-
-        // Busca ranking de faltas
-        const rankingData = await api.getRankingFaltasPeriodo({
-          mes,
-          ano,
-          diaSemana: diaSemanaNum,
-        })
-
-        rankingFaltas = Array.isArray(rankingData) ? rankingData : []
-
-        // Busca dados completos do relatório para KPIs
-        const relatorioData = await api.getRelatorioPresencaMensal({
-          mes,
-          ano,
-          diaSemana: diaSemanaNum,
-        })
-
-        currentReportData = Array.isArray(relatorioData) ? relatorioData : []
-      } else {
+      // Validação: common_id é obrigatório
+      if (!commonId) {
         rankingFaltas = []
         currentReportData = []
+      } else {
+        const mesSelect = document.getElementById('report-mes') as HTMLSelectElement | null
+        const anoSelect = document.getElementById('report-ano') as HTMLSelectElement | null
+        const diaSemanaSelect = document.getElementById('report-weekday') as HTMLSelectElement | null
+
+        if (mesSelect && anoSelect && mesSelect.value && anoSelect.value) {
+          const mes = Number(mesSelect.value)
+          const ano = Number(anoSelect.value)
+          let diaSemanaStr: string | null = null
+
+          if (diaSemanaSelect?.value) {
+            diaSemanaStr = diaSemanaSelect.value
+          }
+
+          // Busca ranking de faltas
+          const rankingData = await api.getRankingFaltasPeriodo({
+            mes,
+            ano,
+            common_id: commonId,
+            diaSemana: diaSemanaStr,
+          })
+
+          rankingFaltas = Array.isArray(rankingData) ? rankingData : []
+
+          // Busca dados completos do relatório para KPIs
+          const relatorioData = await api.getRelatorioPresencaMensal({
+            mes,
+            ano,
+            common_id: commonId,
+            diaSemana: diaSemanaStr,
+          })
+
+          currentReportData = Array.isArray(relatorioData) ? relatorioData : []
+        } else {
+          rankingFaltas = []
+          currentReportData = []
+        }
       }
     } catch (error) {
       console.error('Erro ao buscar dados do relatório:', error)
@@ -1167,6 +1176,7 @@ const loadAvailableDates = async () => {
   const anoSelect = document.getElementById('report-ano') as HTMLSelectElement | null
   const diaSemanaSelect = document.getElementById('report-weekday') as HTMLSelectElement | null
   const dateSelect = document.getElementById('report-date') as HTMLSelectElement | null
+  const commonSelect = document.getElementById('report-common') as HTMLSelectElement | null
 
   // Só carrega datas se estiver no modo culto ou mensal
   if (!modeSelect || (modeSelect.value !== 'culto' && modeSelect.value !== 'mensal')) {
@@ -1181,9 +1191,17 @@ const loadAvailableDates = async () => {
   const mes = mesSelect.value
   const ano = anoSelect.value
   const diaSemanaValue = diaSemanaSelect?.value || ''
+  const commonIdValue = commonSelect?.value || ''
 
   if (!mes || !ano) {
     dateSelect.innerHTML = '<option value="">Selecione mês e ano</option>'
+    availableDates = []
+    return
+  }
+
+  // Validação: common_id é obrigatório
+  if (!commonIdValue) {
+    dateSelect.innerHTML = '<option value="">Selecione uma comum</option>'
     availableDates = []
     return
   }
@@ -1209,6 +1227,7 @@ const loadAvailableDates = async () => {
     const response = await api.getCultosComPresenca({
       mes: Number(mes),
       ano: Number(ano),
+      common_id: Number(commonIdValue),
       diaSemana: diaSemanaNum,
     })
 
