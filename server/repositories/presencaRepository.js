@@ -136,9 +136,10 @@ export const upsertAttendance = async (serviceId, musicianId, status, serviceWee
  * @param {number} mes - Mês (1-12)
  * @param {number} ano - Ano (ex: 2024)
  * @param {number|null} diaSemana - Dia da semana opcional (1=Domingo, 2=Segunda, ..., 7=Sábado)
+ * @param {number|null} ocorrenciaSemana - Ocorrência da semana no mês opcional (1, 2, 3, 4, 5)
  * @returns {Promise<Array>} Array com relatório de presenças por músico
  */
-export const gerarRelatorioPresenca = async (mes, ano, diaSemana = null) => {
+export const gerarRelatorioPresenca = async (mes, ano, diaSemana = null, ocorrenciaSemana = null) => {
   const params = []
   const whereFilters = []
 
@@ -152,6 +153,16 @@ export const gerarRelatorioPresenca = async (mes, ano, diaSemana = null) => {
   if (diaSemana !== null && diaSemana !== undefined) {
     whereFilters.push('DAYOFWEEK(a.service_date) = ?')
     params.push(diaSemana)
+  }
+
+  // Filtro opcional por ocorrência da semana no mês
+  if (ocorrenciaSemana !== null && ocorrenciaSemana !== undefined) {
+    // Valida que ocorrenciaSemana está entre 1 e 5
+    const ocorrencia = Number(ocorrenciaSemana)
+    if (Number.isInteger(ocorrencia) && ocorrencia >= 1 && ocorrencia <= 5) {
+      whereFilters.push('FLOOR((DAY(a.service_date)-1)/7)+1 = ?')
+      params.push(ocorrencia)
+    }
   }
 
   const whereClause = `WHERE ${whereFilters.join(' AND ')}`

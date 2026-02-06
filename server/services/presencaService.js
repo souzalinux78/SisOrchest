@@ -67,11 +67,12 @@ export async function salvarPresenca(serviceId, musicianId, status, serviceWeekd
  * @param {number} ano - Ano (ex: 2024)
  * @param {number|null} diaSemana - Dia da semana opcional (1=Domingo, 2=Segunda, ..., 7=Sábado)
  * @param {boolean} somentePresentes - Se true, retorna apenas músicos com presenças > 0
+ * @param {number|null} ocorrenciaSemana - Ocorrência da semana no mês opcional (1, 2, 3, 4, 5)
  * @returns {Promise<Array>} Array com relatório de presenças por músico incluindo percentuais
  */
-export async function gerarRelatorioPresenca(mes, ano, diaSemana = null, somentePresentes = false) {
+export async function gerarRelatorioPresenca(mes, ano, diaSemana = null, somentePresentes = false, ocorrenciaSemana = null) {
   // Busca dados do repositório
-  const dados = await presencaRepository.gerarRelatorioPresenca(mes, ano, diaSemana)
+  const dados = await presencaRepository.gerarRelatorioPresenca(mes, ano, diaSemana, ocorrenciaSemana)
 
   // Processa cada registro calculando percentuais
   const relatorio = dados.map((registro) => {
@@ -109,4 +110,25 @@ export async function gerarRelatorioPresenca(mes, ano, diaSemana = null, somente
   resultado.sort((a, b) => b.percentual_presenca - a.percentual_presenca)
 
   return resultado
+}
+
+/**
+ * Gera ranking dos 5 músicos com maior percentual de faltas
+ * @param {number} mes - Mês (1-12)
+ * @param {number} ano - Ano (ex: 2024)
+ * @param {number|null} diaSemana - Dia da semana opcional (1=Domingo, 2=Segunda, ..., 7=Sábado)
+ * @returns {Promise<Array>} Array com os 5 músicos com maior percentual de faltas
+ */
+export async function gerarRankingFaltas(mes, ano, diaSemana = null) {
+  // Busca dados usando gerarRelatorioPresenca (sem filtrar somente presentes)
+  const dados = await gerarRelatorioPresenca(mes, ano, diaSemana, false, null)
+
+  // Filtra músicos com total_escalas > 0 (ignora músicos sem escalas)
+  const comEscalas = dados.filter((item) => item.total_escalas > 0)
+
+  // Ordena por percentual_faltas DESC (maior percentual de faltas primeiro)
+  comEscalas.sort((a, b) => b.percentual_faltas - a.percentual_faltas)
+
+  // Retorna apenas os 5 primeiros
+  return comEscalas.slice(0, 5)
 }
