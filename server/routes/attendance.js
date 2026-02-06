@@ -511,7 +511,7 @@ router.get('/relatorios/ranking-faltas-periodo', async (req, res) => {
 
 router.get('/relatorios/cultos-com-presenca', async (req, res) => {
   try {
-    const { mes, ano, diaSemana } = req.query ?? {}
+    const { mes, ano } = req.query ?? {}
 
     // Validação: mes é obrigatório
     if (mes === undefined || mes === null || mes === '') {
@@ -533,19 +533,7 @@ router.get('/relatorios/cultos-com-presenca', async (req, res) => {
       return responseHandler.error(res, 'Ano inválido. Deve ser um número entre 1900 e 2100.', 400)
     }
 
-    // Processa diaSemana (opcional) - pode ser número (1-7) ou string (nome do dia)
-    let diaSemanaParam = null
-    if (diaSemana !== undefined && diaSemana !== null && diaSemana !== '') {
-      // Se for número, mantém como número; se for string, mantém como string
-      const diaSemanaNum = Number(diaSemana)
-      if (Number.isInteger(diaSemanaNum) && diaSemanaNum >= 1 && diaSemanaNum <= 7) {
-        diaSemanaParam = diaSemanaNum
-      } else {
-        diaSemanaParam = diaSemana
-      }
-    }
-
-    const data = await presencaService.listarCultosComPresenca(mesNum, anoNum, diaSemanaParam)
+    const data = await presencaService.listarCultosComPresenca(mesNum, anoNum)
 
     return responseHandler.success(res, data)
   } catch (error) {

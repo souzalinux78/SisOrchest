@@ -254,44 +254,18 @@ export const gerarRelatorioPresenca = async (mes, ano, diaSemana = null, ocorren
  * Lista cultos que possuem pelo menos uma presença registrada
  * @param {number} mes - Mês (1-12)
  * @param {number} ano - Ano (ex: 2024)
- * @param {number|string|null} diaSemana - Dia da semana opcional (número 1-7 ou string como "Domingo", "Segunda", etc.)
  * @returns {Promise<Array>} Array com cultos que possuem presenças registradas
  */
-export const listarCultosComPresenca = async (mes, ano, diaSemana = null) => {
-  const params = []
-  const whereFilters = []
-
-  // Filtro por mês e ano da data do culto
-  whereFilters.push('YEAR(a.service_date) = ?')
-  params.push(ano)
-  whereFilters.push('MONTH(a.service_date) = ?')
-  params.push(mes)
-
-  // Filtro opcional por dia da semana usando service_weekday (string)
-  if (diaSemana !== null && diaSemana !== undefined) {
-    // Se for número (1-7), converte para nome do dia da semana
-    let diaSemanaFiltro = diaSemana
-    if (typeof diaSemana === 'number') {
-      const diasSemana = ['', 'Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
-      if (diaSemana >= 1 && diaSemana <= 7) {
-        diaSemanaFiltro = diasSemana[diaSemana]
-      }
-    }
-    whereFilters.push('a.service_weekday = ?')
-    params.push(diaSemanaFiltro)
-  }
-
-  const whereClause = `WHERE ${whereFilters.join(' AND ')}`
-
+export const listarCultosComPresenca = async (mes, ano) => {
   const [rows] = await pool.query(
-    `SELECT DISTINCT 
-       s.id,
-       a.service_date as data
+    `SELECT DISTINCT
+       a.service_id AS id,
+       a.service_date AS data
      FROM attendance a
-     INNER JOIN services s ON s.id = a.service_id
-     ${whereClause}
+     WHERE MONTH(a.service_date) = ?
+     AND YEAR(a.service_date) = ?
      ORDER BY a.service_date DESC`,
-    params,
+    [mes, ano],
   )
 
   return rows ?? []
