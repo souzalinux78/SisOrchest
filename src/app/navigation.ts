@@ -1,4 +1,4 @@
-import { loadReports, setupReports } from './reports'
+import { loadReports } from './reports'
 
 const titleByView: Record<string, string> = {
   dashboard: 'Dashboard principal',
@@ -29,7 +29,6 @@ export const setupNavigation = () => {
       appBarTitle.textContent = titleByView[viewId] ?? 'SisOrchest'
     }
     if (viewId === 'reports') {
-      setupReports()
       loadReports()
     }
   }
