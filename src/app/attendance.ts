@@ -410,29 +410,37 @@ export const setupAttendanceForm = () => {
     const checkboxes = Array.from(
       document.querySelectorAll<HTMLInputElement>('#attendance-musicians-list input[type="checkbox"]'),
     )
-    const changes = checkboxes
-      .map((checkbox) => {
-        const musicianId = Number(checkbox.value)
-        const currentStatus = checkbox.checked ? 'present' : 'absent'
-        const originalStatus = originalStatusMap.get(musicianId) ?? 'absent'
-        return originalStatus !== currentStatus
-          ? { musicianId, currentStatus, originalStatus }
-          : null
-      })
-      .filter((item): item is { musicianId: number; currentStatus: 'present' | 'absent'; originalStatus: 'present' | 'absent' } => Boolean(item))
+    
+    // Coleta apenas os IDs dos músicos marcados como presentes
+    const presentesIds = checkboxes
+      .filter((checkbox) => checkbox.checked)
+      .map((checkbox) => Number(checkbox.value))
+
+    // Verifica se houve mudanças comparando com o estado original
+    const currentPresentesSet = new Set(presentesIds)
+    const originalPresentesSet = new Set(
+      Array.from(originalStatusMap.entries())
+        .filter(([_, status]) => status === 'present')
+        .map(([id]) => id)
+    )
+    
+    const hasChangesInAttendance = 
+      presentesIds.length !== originalPresentesSet.size ||
+      presentesIds.some(id => !originalPresentesSet.has(id)) ||
+      Array.from(originalPresentesSet).some(id => !currentPresentesSet.has(id))
 
     const visitorsChanged = visitorsCount !== originalVisitorsCount
-    if ((!changes.length && !visitorsChanged) || !hasChanges) {
+    
+    if (!hasChangesInAttendance && !visitorsChanged) {
       setText('attendance-status-text', 'Nenhuma alteração para salvar.')
       return
     }
 
-    const removedPresence = changes.some(
-      (item) => item.originalStatus === 'present' && item.currentStatus === 'absent',
-    )
+    // Alerta se algum músico que estava presente foi desmarcado
+    const removedPresence = Array.from(originalPresentesSet).some(id => !currentPresentesSet.has(id))
     if (removedPresence) {
       const confirmChange = window.confirm(
-        'Você removeu a presença de um músico que estava marcado como presente. Deseja realmente confirmar esta alteração?',
+        'Você removeu a presença de um ou mais músicos que estavam marcados como presentes. Deseja realmente confirmar esta alteração?',
       )
       if (!confirmChange) return
     }
@@ -440,25 +448,24 @@ export const setupAttendanceForm = () => {
     setText('attendance-status-text', 'Salvando alterações...')
     saveButton.disabled = true
     try {
-      const requests = changes.map((change) =>
-        api.registerAttendance({
-          service_id: serviceId,
-          musician_id: change.musicianId,
-          status: change.currentStatus,
-          service_weekday: serviceWeekday,
-          service_date: serviceDate,
-        }),
-      )
+      // Envia service_id, lista de presentes, service_weekday e service_date
+      // O backend cria faltas automaticamente para músicos não presentes
+      await api.registerAttendance({
+        service_id: serviceId,
+        presentes: presentesIds,
+        service_weekday: serviceWeekday,
+        service_date: serviceDate,
+      })
+
+      // Salva visitantes separadamente se houver mudança
       if (visitorsChanged) {
-        requests.push(
-          api.saveAttendanceVisitors({
-            service_id: serviceId,
-            service_date: serviceDate,
-            visitors_count: Math.max(visitorsCount, 0),
-          }),
-        )
+        await api.saveAttendanceVisitors({
+          service_id: serviceId,
+          service_date: serviceDate,
+          visitors_count: Math.max(visitorsCount, 0),
+        })
       }
-      await Promise.all(requests)
+
       await loadAttendanceList()
       renderExistingAttendance(serviceId, serviceDate)
       await loadVisitorsCount(serviceId, serviceDate)

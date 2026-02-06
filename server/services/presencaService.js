@@ -62,6 +62,18 @@ export async function salvarPresenca(serviceId, musicianId, status, serviceWeekd
 }
 
 /**
+ * Salva presenças e faltas para todos os músicos escalados de um culto
+ * @param {number} serviceId - ID do culto
+ * @param {Array<number>} presentesIds - Array com IDs dos músicos presentes
+ * @param {string} serviceWeekday - Dia da semana do culto
+ * @param {string} serviceDate - Data do culto (formato YYYY-MM-DD)
+ * @returns {Promise<void>}
+ */
+export async function salvarPresencasCulto(serviceId, presentesIds, serviceWeekday, serviceDate) {
+  return await presencaRepository.salvarPresencasCulto(serviceId, presentesIds, serviceWeekday, serviceDate)
+}
+
+/**
  * Lista cultos que possuem pelo menos uma presença registrada
  * @param {number} mes - Mês (1-12)
  * @param {number} ano - Ano (ex: 2024)
@@ -127,7 +139,7 @@ export async function gerarRelatorioPresenca(mes, ano, diaSemana = null, somente
  * Gera ranking dos 5 músicos com maior percentual de faltas
  * @param {number} mes - Mês (1-12)
  * @param {number} ano - Ano (ex: 2024)
- * @param {number|null} diaSemana - Dia da semana opcional (1=Domingo, 2=Segunda, ..., 7=Sábado)
+ * @param {number|string|null} diaSemana - Dia da semana opcional (número 1-7 ou string como "Domingo", "Segunda", etc.)
  * @returns {Promise<Array>} Array com os 5 músicos com maior percentual de faltas
  */
 export async function gerarRankingFaltas(mes, ano, diaSemana = null) {
@@ -148,7 +160,7 @@ export async function gerarRankingFaltas(mes, ano, diaSemana = null) {
  * Gera ranking de faltas por período com cálculos de percentuais
  * @param {number} mes - Mês (1-12)
  * @param {number} ano - Ano (ex: 2024)
- * @param {number|null} diaSemana - Dia da semana opcional (1=Domingo, 2=Segunda, ..., 7=Sábado)
+ * @param {number|string|null} diaSemana - Dia da semana opcional (número 1-7 ou string como "Domingo", "Segunda", etc.)
  * @returns {Promise<Array>} Array com os 5 músicos com maior percentual de faltas no período
  */
 export async function gerarRankingFaltasPeriodo(mes, ano, diaSemana = null) {

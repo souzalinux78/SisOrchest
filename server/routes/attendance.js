@@ -219,22 +219,50 @@ router.post('/visitors', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { service_id, musician_id, status, service_weekday, service_date } = req.body ?? {}
+    // Nova API: recebe service_id, lista de presentes, service_weekday e service_date
+    const { service_id, presentes, service_weekday, service_date } = req.body ?? {}
 
-    if (!service_id || !musician_id || !service_weekday || !service_date) {
-      return responseHandler.error(res, 'Dados do culto e músico são obrigatórios.', 400)
+    // Validação básica
+    if (!service_id) {
+      return responseHandler.error(res, 'ID do culto é obrigatório.', 400)
     }
 
-    await presencaService.salvarPresenca(service_id, musician_id, status, service_weekday, service_date)
+    if (!service_weekday || !service_date) {
+      return responseHandler.error(res, 'Dia da semana e data do culto são obrigatórios.', 400)
+    }
 
-    return responseHandler.success(res, null, 'Presença registrada.')
+    const serviceId = Number(service_id)
+    if (!Number.isInteger(serviceId) || serviceId <= 0) {
+      return responseHandler.error(res, 'ID do culto inválido.', 400)
+    }
+
+    const normalizedDate = normalizeServiceDate(service_date)
+    if (!normalizedDate) {
+      return responseHandler.error(res, 'Data do culto inválida. Use o formato DD/MM/AAAA ou YYYY-MM-DD.', 400)
+    }
+
+    // Valida service_weekday como string
+    const weekdays = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
+    if (!weekdays.includes(service_weekday)) {
+      return responseHandler.error(res, 'Dia da semana inválido. Use: Domingo, Segunda, Terça, Quarta, Quinta, Sexta ou Sábado.', 400)
+    }
+
+    // Processa lista de presentes (pode ser array ou undefined/null)
+    const presentesIds = Array.isArray(presentes) 
+      ? presentes.map(id => Number(id)).filter(id => Number.isInteger(id) && id > 0)
+      : []
+
+    // Salva presenças e faltas para todos os músicos escalados
+    await presencaService.salvarPresencasCulto(serviceId, presentesIds, service_weekday, normalizedDate)
+
+    return responseHandler.success(res, null, 'Presenças registradas com sucesso.')
   } catch (error) {
-    console.error('Erro ao registrar presença.', {
+    console.error('Erro ao registrar presenças.', {
       body: req.body,
       error: error.message,
       stack: error.stack,
     })
-    return responseHandler.error(res, 'Erro ao registrar presença.', 500)
+    return responseHandler.error(res, 'Erro ao registrar presenças.', 500)
   }
 })
 
@@ -322,12 +350,23 @@ router.get('/relatorios/presenca', async (req, res) => {
       return responseHandler.error(res, 'Ano inválido. Deve ser um número entre 1900 e 2100.', 400)
     }
 
-    // Processa diaSemana (opcional)
-    let diaSemanaNum = null
+    // Processa diaSemana (opcional) - pode ser número (1-7) ou string (nome do dia)
+    let diaSemanaParam = null
     if (diaSemana !== undefined && diaSemana !== null && diaSemana !== '') {
-      diaSemanaNum = Number(diaSemana)
-      if (!Number.isInteger(diaSemanaNum) || diaSemanaNum < 1 || diaSemanaNum > 7) {
-        return responseHandler.error(res, 'Dia da semana inválido. Deve ser um número entre 1 (Domingo) e 7 (Sábado).', 400)
+      // Se for número, mantém como número (será convertido para string no repository)
+      // Se for string, mantém como string
+      const diaSemanaNum = Number(diaSemana)
+      if (Number.isInteger(diaSemanaNum) && diaSemanaNum >= 1 && diaSemanaNum <= 7) {
+        diaSemanaParam = diaSemanaNum
+      } else if (typeof diaSemana === 'string') {
+        const weekdays = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
+        if (weekdays.includes(diaSemana)) {
+          diaSemanaParam = diaSemana
+        } else {
+          return responseHandler.error(res, 'Dia da semana inválido. Use: Domingo, Segunda, Terça, Quarta, Quinta, Sexta ou Sábado.', 400)
+        }
+      } else {
+        return responseHandler.error(res, 'Dia da semana inválido. Deve ser um número entre 1 (Domingo) e 7 (Sábado) ou o nome do dia.', 400)
       }
     }
 
@@ -343,7 +382,7 @@ router.get('/relatorios/presenca', async (req, res) => {
       }
     }
 
-    const data = await presencaService.gerarRelatorioPresenca(mesNum, anoNum, diaSemanaNum, somentePresentesBool, ocorrenciaSemanaNum)
+    const data = await presencaService.gerarRelatorioPresenca(mesNum, anoNum, diaSemanaParam, somentePresentesBool, ocorrenciaSemanaNum)
 
     return responseHandler.success(res, data)
   } catch (error) {
@@ -380,16 +419,27 @@ router.get('/relatorios/ranking-faltas', async (req, res) => {
       return responseHandler.error(res, 'Ano inválido. Deve ser um número entre 1900 e 2100.', 400)
     }
 
-    // Processa diaSemana (opcional)
-    let diaSemanaNum = null
+    // Processa diaSemana (opcional) - pode ser número (1-7) ou string (nome do dia)
+    let diaSemanaParam = null
     if (diaSemana !== undefined && diaSemana !== null && diaSemana !== '') {
-      diaSemanaNum = Number(diaSemana)
-      if (!Number.isInteger(diaSemanaNum) || diaSemanaNum < 1 || diaSemanaNum > 7) {
-        return responseHandler.error(res, 'Dia da semana inválido. Deve ser um número entre 1 (Domingo) e 7 (Sábado).', 400)
+      // Se for número, mantém como número (será convertido para string no repository)
+      // Se for string, mantém como string
+      const diaSemanaNum = Number(diaSemana)
+      if (Number.isInteger(diaSemanaNum) && diaSemanaNum >= 1 && diaSemanaNum <= 7) {
+        diaSemanaParam = diaSemanaNum
+      } else if (typeof diaSemana === 'string') {
+        const weekdays = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
+        if (weekdays.includes(diaSemana)) {
+          diaSemanaParam = diaSemana
+        } else {
+          return responseHandler.error(res, 'Dia da semana inválido. Use: Domingo, Segunda, Terça, Quarta, Quinta, Sexta ou Sábado.', 400)
+        }
+      } else {
+        return responseHandler.error(res, 'Dia da semana inválido. Deve ser um número entre 1 (Domingo) e 7 (Sábado) ou o nome do dia.', 400)
       }
     }
 
-    const data = await presencaService.gerarRankingFaltas(mesNum, anoNum, diaSemanaNum)
+    const data = await presencaService.gerarRankingFaltas(mesNum, anoNum, diaSemanaParam)
 
     return responseHandler.success(res, data)
   } catch (error) {
@@ -426,16 +476,27 @@ router.get('/relatorios/ranking-faltas-periodo', async (req, res) => {
       return responseHandler.error(res, 'Ano inválido. Deve ser um número entre 1900 e 2100.', 400)
     }
 
-    // Processa diaSemana (opcional)
-    let diaSemanaNum = null
+    // Processa diaSemana (opcional) - pode ser número (1-7) ou string (nome do dia)
+    let diaSemanaParam = null
     if (diaSemana !== undefined && diaSemana !== null && diaSemana !== '') {
-      diaSemanaNum = Number(diaSemana)
-      if (!Number.isInteger(diaSemanaNum) || diaSemanaNum < 1 || diaSemanaNum > 7) {
-        return responseHandler.error(res, 'Dia da semana inválido. Deve ser um número entre 1 (Domingo) e 7 (Sábado).', 400)
+      // Se for número, mantém como número (será convertido para string no repository)
+      // Se for string, mantém como string
+      const diaSemanaNum = Number(diaSemana)
+      if (Number.isInteger(diaSemanaNum) && diaSemanaNum >= 1 && diaSemanaNum <= 7) {
+        diaSemanaParam = diaSemanaNum
+      } else if (typeof diaSemana === 'string') {
+        const weekdays = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
+        if (weekdays.includes(diaSemana)) {
+          diaSemanaParam = diaSemana
+        } else {
+          return responseHandler.error(res, 'Dia da semana inválido. Use: Domingo, Segunda, Terça, Quarta, Quinta, Sexta ou Sábado.', 400)
+        }
+      } else {
+        return responseHandler.error(res, 'Dia da semana inválido. Deve ser um número entre 1 (Domingo) e 7 (Sábado) ou o nome do dia.', 400)
       }
     }
 
-    const data = await presencaService.gerarRankingFaltasPeriodo(mesNum, anoNum, diaSemanaNum)
+    const data = await presencaService.gerarRankingFaltasPeriodo(mesNum, anoNum, diaSemanaParam)
 
     return responseHandler.success(res, data)
   } catch (error) {
@@ -521,12 +582,23 @@ router.get('/relatorios/presenca/pdf', async (req, res) => {
       return responseHandler.error(res, 'Ano inválido. Deve ser um número entre 1900 e 2100.', 400)
     }
 
-    // Processa diaSemana (opcional)
-    let diaSemanaNum = null
+    // Processa diaSemana (opcional) - pode ser número (1-7) ou string (nome do dia)
+    let diaSemanaParam = null
     if (diaSemana !== undefined && diaSemana !== null && diaSemana !== '') {
-      diaSemanaNum = Number(diaSemana)
-      if (!Number.isInteger(diaSemanaNum) || diaSemanaNum < 1 || diaSemanaNum > 7) {
-        return responseHandler.error(res, 'Dia da semana inválido. Deve ser um número entre 1 (Domingo) e 7 (Sábado).', 400)
+      // Se for número, mantém como número (será convertido para string no repository)
+      // Se for string, mantém como string
+      const diaSemanaNum = Number(diaSemana)
+      if (Number.isInteger(diaSemanaNum) && diaSemanaNum >= 1 && diaSemanaNum <= 7) {
+        diaSemanaParam = diaSemanaNum
+      } else if (typeof diaSemana === 'string') {
+        const weekdays = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
+        if (weekdays.includes(diaSemana)) {
+          diaSemanaParam = diaSemana
+        } else {
+          return responseHandler.error(res, 'Dia da semana inválido. Use: Domingo, Segunda, Terça, Quarta, Quinta, Sexta ou Sábado.', 400)
+        }
+      } else {
+        return responseHandler.error(res, 'Dia da semana inválido. Deve ser um número entre 1 (Domingo) e 7 (Sábado) ou o nome do dia.', 400)
       }
     }
 

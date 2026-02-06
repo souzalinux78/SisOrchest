@@ -142,8 +142,7 @@ export const api = {
   },
   registerAttendance: (payload: {
     service_id: number
-    musician_id: number
-    status?: string
+    presentes: number[]
     service_weekday: string
     service_date: string
   }) =>

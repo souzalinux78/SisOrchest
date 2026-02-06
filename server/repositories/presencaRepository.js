@@ -132,6 +132,62 @@ export const upsertAttendance = async (serviceId, musicianId, status, serviceWee
 }
 
 /**
+ * Busca músicos escalados para um culto (todos os músicos ativos da mesma comum)
+ * @param {number} serviceId - ID do culto
+ * @returns {Promise<Array>} Array com IDs dos músicos escalados
+ */
+export const buscarMusicosEscalados = async (serviceId) => {
+  const [rows] = await pool.query(
+    `SELECT m.id
+     FROM services s
+     INNER JOIN musicians m ON m.common_id = s.common_id
+     WHERE s.id = ? AND m.status = 'active'
+     ORDER BY m.name ASC`,
+    [serviceId],
+  )
+  return rows ?? []
+}
+
+/**
+ * Salva presenças e faltas para todos os músicos escalados de um culto
+ * @param {number} serviceId - ID do culto
+ * @param {Array<number>} presentesIds - Array com IDs dos músicos presentes
+ * @param {string} serviceWeekday - Dia da semana do culto
+ * @param {string} serviceDate - Data do culto (formato YYYY-MM-DD)
+ * @returns {Promise<void>}
+ */
+export const salvarPresencasCulto = async (serviceId, presentesIds, serviceWeekday, serviceDate) => {
+  // Busca todos os músicos escalados
+  const musicosEscalados = await buscarMusicosEscalados(serviceId)
+  const presentesSet = new Set(presentesIds.map(id => Number(id)))
+
+  // Prepara os dados para inserção em lote
+  const valores = musicosEscalados.map((musico) => {
+    const status = presentesSet.has(musico.id) ? 'present' : 'absent'
+    return [serviceId, musico.id, status, serviceWeekday, serviceDate]
+  })
+
+  if (valores.length === 0) {
+    return
+  }
+
+  // Insere ou atualiza em lote usando INSERT ... ON DUPLICATE KEY UPDATE
+  const placeholders = valores.map(() => '(?, ?, ?, ?, ?)').join(', ')
+  const params = valores.flat()
+
+  await pool.query(
+    `INSERT INTO attendance (service_id, musician_id, status, service_weekday, service_date)
+     VALUES ${placeholders}
+     ON DUPLICATE KEY UPDATE 
+       status = VALUES(status), 
+       service_weekday = VALUES(service_weekday), 
+       service_date = VALUES(service_date), 
+       recorded_at = CURRENT_TIMESTAMP`,
+    params,
+  )
+}
+
+/**
  * Gera relatório de presença agrupado por músico
  * @param {number} mes - Mês (1-12)
  * @param {number} ano - Ano (ex: 2024)
@@ -149,10 +205,18 @@ export const gerarRelatorioPresenca = async (mes, ano, diaSemana = null, ocorren
   whereFilters.push('MONTH(a.service_date) = ?')
   params.push(mes)
 
-  // Filtro opcional por dia da semana
+  // Filtro opcional por dia da semana usando service_weekday (string)
   if (diaSemana !== null && diaSemana !== undefined) {
-    whereFilters.push('DAYOFWEEK(a.service_date) = ?')
-    params.push(diaSemana)
+    // Se for número (1-7), converte para nome do dia da semana
+    let diaSemanaFiltro = diaSemana
+    if (typeof diaSemana === 'number') {
+      const diasSemana = ['', 'Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
+      if (diaSemana >= 1 && diaSemana <= 7) {
+        diaSemanaFiltro = diasSemana[diaSemana]
+      }
+    }
+    whereFilters.push('a.service_weekday = ?')
+    params.push(diaSemanaFiltro)
   }
 
   // Filtro opcional por ocorrência da semana no mês
@@ -190,7 +254,7 @@ export const gerarRelatorioPresenca = async (mes, ano, diaSemana = null, ocorren
  * Lista cultos que possuem pelo menos uma presença registrada
  * @param {number} mes - Mês (1-12)
  * @param {number} ano - Ano (ex: 2024)
- * @param {number|null} diaSemana - Dia da semana opcional (1=Domingo, 2=Segunda, ..., 7=Sábado)
+ * @param {number|string|null} diaSemana - Dia da semana opcional (número 1-7 ou string como "Domingo", "Segunda", etc.)
  * @returns {Promise<Array>} Array com cultos que possuem presenças registradas
  */
 export const listarCultosComPresenca = async (mes, ano, diaSemana = null) => {
@@ -203,10 +267,18 @@ export const listarCultosComPresenca = async (mes, ano, diaSemana = null) => {
   whereFilters.push('MONTH(a.service_date) = ?')
   params.push(mes)
 
-  // Filtro opcional por dia da semana
+  // Filtro opcional por dia da semana usando service_weekday (string)
   if (diaSemana !== null && diaSemana !== undefined) {
-    whereFilters.push('DAYOFWEEK(a.service_date) = ?')
-    params.push(diaSemana)
+    // Se for número (1-7), converte para nome do dia da semana
+    let diaSemanaFiltro = diaSemana
+    if (typeof diaSemana === 'number') {
+      const diasSemana = ['', 'Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
+      if (diaSemana >= 1 && diaSemana <= 7) {
+        diaSemanaFiltro = diasSemana[diaSemana]
+      }
+    }
+    whereFilters.push('a.service_weekday = ?')
+    params.push(diaSemanaFiltro)
   }
 
   const whereClause = `WHERE ${whereFilters.join(' AND ')}`
