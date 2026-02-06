@@ -474,13 +474,13 @@ export const buscarDadosRelatorioExecutivo = async (commonId, month, year, weekd
     params,
   )
 
-  const totalPresencas = attendanceRows?.[0]?.total_presencas ?? 0
-  const totalFaltas = attendanceRows?.[0]?.total_faltas ?? 0
+  const totalPresencas = Number(attendanceRows?.[0]?.total_presencas) || 0
+  const totalFaltas = Number(attendanceRows?.[0]?.total_faltas) || 0
 
   return {
-    total_musicos: totalMusicos,
-    total_cultos_distintos: totalCultosDistintos,
-    total_presencas,
-    total_faltas,
+    total_musicos: Number(totalMusicos) || 0,
+    total_cultos_distintos: Number(totalCultosDistintos) || 0,
+    total_presencas: totalPresencas,
+    total_faltas: totalFaltas,
   }
 }

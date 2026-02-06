@@ -183,15 +183,15 @@ export async function gerarResumoExecutivo(commonId, month, year, weekday = null
 
   const { total_musicos, total_cultos_distintos, total_presencas, total_faltas } = dados
 
-  // Calcula percentual geral: (presenças / (músicos x cultos)) * 100
+  // Calcula percentual de presença: (presenças / (músicos x cultos)) * 100
   const totalEsperado = total_musicos * total_cultos_distintos
-  const percentualGeral = totalEsperado === 0 ? 0 : Number(((total_presencas / totalEsperado) * 100).toFixed(2))
+  const percentualPresenca = totalEsperado === 0 ? 0 : Number(((total_presencas / totalEsperado) * 100).toFixed(2))
 
   return {
-    total_musicos,
-    total_cultos_distintos,
-    total_presencas,
-    total_faltas,
-    percentual_geral: percentualGeral,
+    total_musicos: Number(total_musicos) || 0,
+    total_cultos_distintos: Number(total_cultos_distintos) || 0,
+    total_presencas: Number(total_presencas) || 0,
+    total_faltas: Number(total_faltas) || 0,
+    percentual_presenca: percentualPresenca,
   }
 }
