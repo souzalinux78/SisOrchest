@@ -226,6 +226,9 @@ export const buscarMusicosComRegistro = async (serviceId, serviceDate) => {
  * @returns {Promise<void>}
  */
 export const salvarPresencasCulto = async (serviceId, presentesIds, serviceWeekday, serviceDate) => {
+  console.log('🟢 [AUDITORIA] salvarPresencasCulto INICIADO')
+  console.log('🟢 [AUDITORIA] Parâmetros:', { serviceId, presentesIds, serviceWeekday, serviceDate })
+  
   // 1. Busca o common_id do service
   const [serviceRows] = await pool.query(
     'SELECT common_id FROM services WHERE id = ? LIMIT 1',
@@ -233,46 +236,69 @@ export const salvarPresencasCulto = async (serviceId, presentesIds, serviceWeekd
   )
 
   if (!serviceRows || serviceRows.length === 0) {
+    console.error('🔴 [AUDITORIA] ERRO: Culto não encontrado para serviceId:', serviceId)
     throw new Error('Culto não encontrado.')
   }
 
   const commonId = serviceRows[0].common_id
+  console.log('🟢 [AUDITORIA] common_id encontrado:', commonId)
 
   // 2. Busca todos os músicos ativos da comum
   const musicosAtivos = await buscarMusicosAtivosComum(commonId)
+  console.log('🟢 [AUDITORIA] Músicos ativos encontrados:', musicosAtivos.length)
 
   if (musicosAtivos.length === 0) {
+    console.warn('🟡 [AUDITORIA] AVISO: Nenhum músico ativo encontrado. Retornando sem criar registros.')
     return
   }
 
   // 3. Busca quais músicos já têm registro (em uma única query para melhor performance)
   const musicosComRegistro = await buscarMusicosComRegistro(serviceId, serviceDate)
+  console.log('🟢 [AUDITORIA] Músicos com registro existente:', musicosComRegistro.size)
 
   // 4. Prepara lista de músicos que precisam ter registro criado (ausentes)
   const musicosParaCriar = musicosAtivos.filter(m => !musicosComRegistro.has(m.id))
+  console.log('🟢 [AUDITORIA] Músicos que precisam ter registro criado (ausentes):', musicosParaCriar.length)
 
   // 5. Cria registros ausentes em lote (se houver)
   if (musicosParaCriar.length > 0) {
+    console.log('🟢 [AUDITORIA] Criando registros ausentes em lote para', musicosParaCriar.length, 'músicos')
     const valores = musicosParaCriar.map(m => [serviceId, m.id, 'absent', serviceWeekday, serviceDate])
     const placeholders = valores.map(() => '(?, ?, ?, ?, ?)').join(', ')
     const params = valores.flat()
 
-    await pool.query(
-      `INSERT INTO attendance 
-       (service_id, musician_id, status, service_weekday, service_date)
-       VALUES ${placeholders}`,
-      params,
-    )
+    try {
+      await pool.query(
+        `INSERT INTO attendance 
+         (service_id, musician_id, status, service_weekday, service_date)
+         VALUES ${placeholders}
+         ON DUPLICATE KEY UPDATE 
+           status = VALUES(status),
+           service_weekday = VALUES(service_weekday),
+           service_date = VALUES(service_date),
+           recorded_at = CURRENT_TIMESTAMP`,
+        params,
+      )
+      console.log('🟢 [AUDITORIA] Registros ausentes criados/atualizados com sucesso')
+    } catch (error) {
+      console.error('🔴 [AUDITORIA] ERRO ao criar registros ausentes:', error.message)
+      console.error('🔴 [AUDITORIA] Stack:', error.stack)
+      throw error
+    }
+  } else {
+    console.log('🟡 [AUDITORIA] Nenhum registro ausente a criar (todos já têm registro)')
   }
 
   // 6. Atualiza para 'present' apenas os músicos que foram marcados
   const presentesSet = new Set(presentesIds.map(id => Number(id)))
+  console.log('🟢 [AUDITORIA] Músicos marcados como presentes:', presentesSet.size)
   
   if (presentesSet.size > 0) {
     // Filtra apenas músicos que existem na lista de ativos
     const musicosParaAtualizar = Array.from(presentesSet).filter(id => 
       musicosAtivos.some(m => m.id === id)
     )
+    console.log('🟢 [AUDITORIA] Músicos válidos para atualizar para presente:', musicosParaAtualizar.length)
 
     if (musicosParaAtualizar.length > 0) {
       const placeholders = musicosParaAtualizar.map(() => '?').join(', ')
@@ -286,7 +312,12 @@ export const salvarPresencasCulto = async (serviceId, presentesIds, serviceWeekd
          AND musician_id IN (${placeholders})`,
         params,
       )
+      console.log('🟢 [AUDITORIA] Registros atualizados para presente com sucesso')
+    } else {
+      console.warn('🟡 [AUDITORIA] AVISO: Nenhum músico válido para atualizar para presente')
     }
+  } else {
+    console.log('🟡 [AUDITORIA] Nenhum músico marcado como presente')
   }
 
   // 7. Garante que músicos não marcados como presentes tenham status 'absent'
@@ -295,11 +326,13 @@ export const salvarPresencasCulto = async (serviceId, presentesIds, serviceWeekd
     .filter(m => !presentesSet.has(m.id))
     .map(m => m.id)
 
+  console.log('🟢 [AUDITORIA] Músicos não marcados como presentes:', musicosNaoPresentes.length)
+
   if (musicosNaoPresentes.length > 0) {
     const placeholders = musicosNaoPresentes.map(() => '?').join(', ')
     const params = [serviceId, serviceDate, ...musicosNaoPresentes]
 
-    await pool.query(
+    const [updateResult] = await pool.query(
       `UPDATE attendance
        SET status = 'absent', recorded_at = CURRENT_TIMESTAMP
        WHERE service_id = ?
@@ -308,7 +341,10 @@ export const salvarPresencasCulto = async (serviceId, presentesIds, serviceWeekd
        AND status = 'present'`,
       params,
     )
+    console.log('🟢 [AUDITORIA] Registros alterados de presente para ausente:', updateResult.affectedRows || 0)
   }
+  
+  console.log('🟢 [AUDITORIA] salvarPresencasCulto CONCLUÍDO COM SUCESSO')
 }
 
 /**

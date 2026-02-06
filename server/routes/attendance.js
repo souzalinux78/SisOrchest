@@ -218,6 +218,8 @@ router.post('/visitors', async (req, res) => {
 })
 
 router.post('/', async (req, res) => {
+  console.log('🔵 [AUDITORIA] ROTA POST /attendance EXECUTADA')
+  console.log('🔵 [AUDITORIA] Body recebido:', JSON.stringify(req.body, null, 2))
   try {
     // Nova API: recebe service_id, lista de presentes, service_weekday e service_date
     const { service_id, presentes, service_weekday, service_date } = req.body ?? {}
@@ -253,7 +255,14 @@ router.post('/', async (req, res) => {
       : []
 
     // Salva presenças e faltas para todos os músicos escalados
+    console.log('🔵 [AUDITORIA] Chamando presencaService.salvarPresencasCulto com:', {
+      serviceId,
+      presentesIds,
+      service_weekday,
+      normalizedDate,
+    })
     await presencaService.salvarPresencasCulto(serviceId, presentesIds, service_weekday, normalizedDate)
+    console.log('🔵 [AUDITORIA] presencaService.salvarPresencasCulto concluído com sucesso')
 
     return responseHandler.success(res, null, 'Presenças registradas com sucesso.')
   } catch (error) {
