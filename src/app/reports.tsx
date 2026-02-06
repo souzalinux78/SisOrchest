@@ -1,45 +1,14 @@
-import { createRoot } from 'react-dom/client'
-import Reports from './ReportsComponent'
+import React from 'react'
 
-let reactRoot: ReturnType<typeof createRoot> | null = null
-
-export const setupReports = () => {
-  const mountReports = () => {
-    const container = document.getElementById('reports-react-root')
-    
-    if (container) {
-      if (reactRoot) {
-        reactRoot.unmount()
-        reactRoot = null
-      }
-      reactRoot = createRoot(container)
-      reactRoot.render(<Reports />)
-    }
-  }
-
-  const container = document.getElementById('reports-react-root')
-  if (container) {
-    mountReports()
-  } else {
-    const observer = new MutationObserver(() => {
-      const container = document.getElementById('reports-react-root')
-      if (container) {
-        mountReports()
-        observer.disconnect()
-      }
-    })
-    observer.observe(document.body, { childList: true, subtree: true })
-    
-    setTimeout(() => {
-      observer.disconnect()
-      const container = document.getElementById('reports-react-root')
-      if (container && !reactRoot) {
-        mountReports()
-      }
-    }, 1000)
-  }
-}
-
-export const loadReports = async () => {
-  setupReports()
+export default function Reports() {
+  return (
+    <div style={{
+      padding: '40px',
+      color: 'white',
+      fontSize: '24px'
+    }}>
+      <h1>Relatórios funcionando</h1>
+      <p>Componente carregado com sucesso.</p>
+    </div>
+  )
 }
