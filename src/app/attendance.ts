@@ -38,7 +38,6 @@ const weekdayOrder = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta
 
 let cachedAttendance: Attendance[] = []
 let originalStatusMap = new Map<number, 'present' | 'absent'>()
-let hasChanges = false
 let originalVisitorsCount = 0
 
 const formatBrDate = (value?: string | null) => {
@@ -113,7 +112,6 @@ const applyExistingToChecklist = (serviceId?: number | null, serviceDate?: strin
     checkbox.checked = existing.status === 'present'
     originalStatusMap.set(Number(checkbox.value), existing.status === 'present' ? 'present' : 'absent')
   })
-  hasChanges = false
   const saveButton = document.getElementById('attendance-save') as HTMLButtonElement | null
   if (saveButton) saveButton.disabled = true
 }
@@ -356,7 +354,6 @@ export const setupAttendanceForm = () => {
       visitorsInput.value = '0'
     }
     if (currentValue !== originalVisitorsCount) {
-      hasChanges = true
       if (saveButton) saveButton.disabled = false
       setText('attendance-status-text', 'Alterações pendentes. Clique em "Salvar alterações".')
     }
@@ -390,7 +387,6 @@ export const setupAttendanceForm = () => {
       }
     }
 
-    hasChanges = true
     if (saveButton) saveButton.disabled = false
     setText('attendance-status-text', 'Alterações pendentes. Clique em "Salvar alterações".')
   })
@@ -469,7 +465,6 @@ export const setupAttendanceForm = () => {
       await loadAttendanceList()
       renderExistingAttendance(serviceId, serviceDate)
       await loadVisitorsCount(serviceId, serviceDate)
-      hasChanges = false
       setText('attendance-status-text', 'Alterações salvas com sucesso.')
       window.dispatchEvent(new CustomEvent('attendance:updated'))
     } catch (error) {
