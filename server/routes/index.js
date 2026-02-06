@@ -1,6 +1,18 @@
-export { authRouter } from './auth.js'
-export { commonsRouter } from './commons.js'
-export { musiciansRouter } from './musicians.js'
-export { servicesRouter } from './services.js'
-export { attendanceRouter } from './attendance.js'
-export { usersRouter } from './users.js'
+import express from 'express'
+import { authRouter } from './auth.js'
+import { commonsRouter } from './commons.js'
+import { musiciansRouter } from './musicians.js'
+import { servicesRouter } from './services.js'
+import { attendanceRouter } from './attendance.js'
+import { usersRouter } from './users.js'
+
+const router = express.Router()
+
+router.use('/commons', commonsRouter)
+router.use('/musicians', musiciansRouter)
+router.use('/services', servicesRouter)
+router.use('/attendance', attendanceRouter)
+router.use('/users', usersRouter)
+router.use('/auth', authRouter)
+
+export default router

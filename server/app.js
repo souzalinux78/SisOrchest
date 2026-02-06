@@ -2,14 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import { config } from './config.js'
 import { pingDb } from './db.js'
-import {
-  authRouter,
-  commonsRouter,
-  musiciansRouter,
-  servicesRouter,
-  attendanceRouter,
-  usersRouter,
-} from './routes/index.js'
+import routes from './routes/index.js'
 import { optionalAuth } from './routes/utils.js'
 
 export const createApp = () => {
@@ -53,14 +46,22 @@ export const createApp = () => {
     }
   })
 
-  app.use('/auth', authRouter)
-  app.use('/auth/login', rateLimit('auth-login', 20, 15 * 60 * 1000))
-  app.use('/users/register', rateLimit('users-register', 10, 15 * 60 * 1000))
-  app.use('/commons', commonsRouter)
-  app.use('/musicians', musiciansRouter)
-  app.use('/services', servicesRouter)
-  app.use('/attendance', attendanceRouter)
-  app.use('/users', usersRouter)
+  // Rate limiting para rotas específicas
+  app.use('/api/auth/login', rateLimit('auth-login', 20, 15 * 60 * 1000))
+  app.use('/api/users/register', rateLimit('users-register', 10, 15 * 60 * 1000))
+
+  // Monta todas as rotas sob o prefixo /api
+  app.use('/api', routes)
+
+  // Handler 404 para rotas não encontradas
+  app.use((_req, res) => {
+    res.status(404).json({ message: 'Rota não encontrada.' })
+  })
+
+  // Error handler
+  app.use((err, _req, res, _next) => {
+    res.status(500).json({ message: 'Erro interno do servidor.' })
+  })
 
   return app
 }
