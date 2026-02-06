@@ -1168,10 +1168,10 @@ const loadAvailableDates = async () => {
   const diaSemanaSelect = document.getElementById('report-weekday') as HTMLSelectElement | null
   const dateSelect = document.getElementById('report-date') as HTMLSelectElement | null
 
-  // Só carrega datas se estiver no modo mensal
-  if (!modeSelect || modeSelect.value !== 'mensal') {
+  // Só carrega datas se estiver no modo culto ou mensal
+  if (!modeSelect || (modeSelect.value !== 'culto' && modeSelect.value !== 'mensal')) {
     if (dateSelect) {
-      dateSelect.innerHTML = '<option value="">Selecione modo mensal</option>'
+      dateSelect.innerHTML = '<option value="">Selecione um modo</option>'
     }
     return
   }
@@ -1203,6 +1203,8 @@ const loadAvailableDates = async () => {
       }
       diaSemanaNum = diaSemanaMap[diaSemanaValue] || null
     }
+
+    console.log('Carregando datas para:', mes, ano)
 
     const response = await api.getCultosComPresenca({
       mes: Number(mes),
@@ -1266,17 +1268,28 @@ const toggleReportMode = () => {
 }
 
 const setupDateSelectListeners = () => {
+  const modeSelect = document.getElementById('report-mode') as HTMLSelectElement | null
   const mesSelect = document.getElementById('report-mes') as HTMLSelectElement | null
   const anoSelect = document.getElementById('report-ano') as HTMLSelectElement | null
   const diaSemanaSelect = document.getElementById('report-weekday') as HTMLSelectElement | null
 
-  const updateDates = () => {
-    loadAvailableDates()
-  }
+  mesSelect?.addEventListener('change', () => {
+    if (modeSelect?.value === 'culto') {
+      loadAvailableDates()
+    }
+  })
 
-  mesSelect?.addEventListener('change', updateDates)
-  anoSelect?.addEventListener('change', updateDates)
-  diaSemanaSelect?.addEventListener('change', updateDates)
+  anoSelect?.addEventListener('change', () => {
+    if (modeSelect?.value === 'culto') {
+      loadAvailableDates()
+    }
+  })
+
+  diaSemanaSelect?.addEventListener('change', () => {
+    if (modeSelect?.value === 'culto') {
+      loadAvailableDates()
+    }
+  })
 }
 
 export const setupReports = () => {
@@ -1305,6 +1318,8 @@ export const setupReports = () => {
       if (anoSelect) anoSelect.value = ''
       if (weekdaySelect) weekdaySelect.value = ''
       if (dateSelect) dateSelect.innerHTML = '<option value="">Selecione uma data</option>'
+      // Carrega as datas quando muda para modo culto
+      loadAvailableDates()
     } else {
       // No modo mensal, limpa o campo de data do culto
       if (dateSelect) dateSelect.innerHTML = '<option value="">Selecione mês e ano</option>'
