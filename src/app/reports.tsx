@@ -1,4 +1,3 @@
-import React from 'react'
 import { api } from './api'
 import type { Attendance, AttendanceVisitors, Common, Musician, Service } from './api'
 import { clearTableLoading, clearTextLoading, formatServiceSchedule, requireConfirmClick, setButtonLoading, setHtml, setTableLoading, setText, setTextLoading } from './dom'
@@ -1212,7 +1211,7 @@ const loadAvailableDates = async () => {
     })
 
     availableDates = Array.isArray(response) ? response : []
-    const options = availableDates.map((date) => `<option value="${date.id}">${date.data || date.service_date || ''}</option>`).join('')
+    const options = availableDates.map((date) => `<option value="${date.id}">${date.data || ''}</option>`).join('')
     dateSelect.innerHTML = availableDates.length > 0
       ? `<option value="">Todas as datas</option>${options}`
       : '<option value="">Nenhuma data disponível</option>'
