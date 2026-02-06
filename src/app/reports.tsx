@@ -28,7 +28,11 @@ type CultoData = {
   data: string
 }
 
-export const ReportsComponent = () => {
+export const Reports = () => {
+  useEffect(() => {
+    console.log('Reports component mounted')
+  }, [])
+
   const currentUser = getCurrentUser()
   const currentYear = new Date().getFullYear()
   const currentMonth = new Date().getMonth() + 1
@@ -116,6 +120,7 @@ export const ReportsComponent = () => {
         })
 
         console.log('🔵 [AUDITORIA] PRESENCA DATA (culto):', data)
+        
         setReportData(Array.isArray(data) ? data : [])
         setRankingData([]) // Ranking não disponível para culto específico
       } else {
@@ -250,14 +255,17 @@ export const ReportsComponent = () => {
     { value: 'Sábado', label: 'Sábado' },
   ]
 
+  // JSX temporário para teste
   return (
-    <section className="view" data-view="reports">
-      <div className="view-header">
-        <div>
-          <h2>Relatórios</h2>
-          <p>Visões executivas para a direção musical.</p>
+    <div style={{ padding: 40, color: 'white' }}>
+      <h1>RELATÓRIO CARREGADO</h1>
+      <section className="view" data-view="reports">
+        <div className="view-header">
+          <div>
+            <h2>Relatórios</h2>
+            <p>Visões executivas para a direção musical.</p>
+          </div>
         </div>
-      </div>
 
       <div className="report-filters">
         {currentUser?.role === 'admin' && (
@@ -524,7 +532,8 @@ export const ReportsComponent = () => {
           <p>Ranking não disponível para culto específico.</p>
         </div>
       )}
-    </section>
+      </section>
+    </div>
   )
 }
 
@@ -532,31 +541,55 @@ export const ReportsComponent = () => {
 let reactRoot: ReturnType<typeof createRoot> | null = null
 
 export const setupReports = () => {
+  console.log('setupReports chamado')
+  
   // Monta o componente React quando a view é ativada
   const mountReports = () => {
     const container = document.getElementById('reports-react-root')
+    console.log('Container encontrado:', container)
+    
     if (container) {
       // Limpa o root anterior se existir
       if (reactRoot) {
         reactRoot.unmount()
+        reactRoot = null
       }
       reactRoot = createRoot(container)
-      reactRoot.render(<ReportsComponent />)
+      console.log('Montando componente Reports...')
+      reactRoot.render(<Reports />)
+      console.log('Componente Reports montado com sucesso')
+    } else {
+      console.error('Container reports-react-root não encontrado!')
     }
   }
 
   // Monta imediatamente se o container já existe
-  if (document.getElementById('reports-react-root')) {
+  const container = document.getElementById('reports-react-root')
+  if (container) {
+    console.log('Container já existe, montando imediatamente')
     mountReports()
   } else {
+    console.log('Container não existe ainda, aguardando...')
     // Aguarda o DOM estar pronto
     const observer = new MutationObserver(() => {
-      if (document.getElementById('reports-react-root')) {
+      const container = document.getElementById('reports-react-root')
+      if (container) {
+        console.log('Container encontrado via observer, montando...')
         mountReports()
         observer.disconnect()
       }
     })
     observer.observe(document.body, { childList: true, subtree: true })
+    
+    // Timeout de segurança
+    setTimeout(() => {
+      observer.disconnect()
+      const container = document.getElementById('reports-react-root')
+      if (container && !reactRoot) {
+        console.log('Montando após timeout de segurança')
+        mountReports()
+      }
+    }, 1000)
   }
 }
 
