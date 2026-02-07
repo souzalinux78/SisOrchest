@@ -28,6 +28,9 @@ export const attendanceView = `
       <div id="attendance-existing" class="attendance-existing"></div>
       <div class="attendance-checklist">
         <h4>Músicos da comum</h4>
+        <label class="full-width-search">
+          <input id="attendance-search" type="text" placeholder="Buscar por nome ou instrumento..." />
+        </label>
         <div id="attendance-musicians-list" class="attendance-list"></div>
       </div>
       <div class="attendance-actions">

@@ -32,17 +32,39 @@
 }
 
 @keyframes shake {
-  0% { transform: translateX(0); }
-  20% { transform: translateX(-4px); }
-  40% { transform: translateX(4px); }
-  60% { transform: translateX(-3px); }
-  80% { transform: translateX(3px); }
-  100% { transform: translateX(0); }
+  0% {
+    transform: translateX(0);
+  }
+
+  20% {
+    transform: translateX(-4px);
+  }
+
+  40% {
+    transform: translateX(4px);
+  }
+
+  60% {
+    transform: translateX(-3px);
+  }
+
+  80% {
+    transform: translateX(3px);
+  }
+
+  100% {
+    transform: translateX(0);
+  }
 }
 
 @keyframes spin {
-  0% { transform: translateY(-50%) rotate(0deg); }
-  100% { transform: translateY(-50%) rotate(360deg); }
+  0% {
+    transform: translateY(-50%) rotate(0deg);
+  }
+
+  100% {
+    transform: translateY(-50%) rotate(360deg);
+  }
 }
 
 .restricted-card {
@@ -211,6 +233,31 @@
   padding: 0.7rem 0.9rem;
   color: var(--white);
   min-height: 44px;
+}
+
+.full-width-search {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 1.5rem;
+  width: 100%;
+}
+
+.full-width-search input {
+  background: var(--black-soft);
+  border: 1px solid rgba(212, 175, 55, 0.25);
+  border-radius: 12px;
+  padding: 0.7rem 0.9rem;
+  color: var(--white);
+  min-height: 44px;
+  width: 100%;
+}
+
+.full-width-search input:focus {
+  border-color: var(--gold-main);
+  outline: 2px solid rgba(212, 175, 55, 0.2);
 }
 
 .form-grid textarea {
@@ -688,6 +735,7 @@ button.is-loading::after {
     opacity: 0;
     transform: translateY(-10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);

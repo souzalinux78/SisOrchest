@@ -396,6 +396,21 @@ export const setupAttendanceForm = () => {
     setText('attendance-status-text', 'Alterações pendentes. Clique em "Salvar alterações".')
   })
 
+  const searchInput = document.getElementById('attendance-search') as HTMLInputElement | null
+  searchInput?.addEventListener('input', () => {
+    const filter = searchInput.value.toLowerCase()
+    const items = document.querySelectorAll<HTMLLabelElement>('#attendance-musicians-list .attendance-item')
+
+    items.forEach((item) => {
+      const text = item.textContent?.toLowerCase() || ''
+      if (text.includes(filter)) {
+        item.style.display = ''
+      } else {
+        item.style.display = 'none'
+      }
+    })
+  })
+
   saveButton?.addEventListener('click', async () => {
     const serviceId = Number(serviceSelect?.value ?? 0)
     const serviceDate = parseBrDateToIso(dateInput?.value ?? '')
