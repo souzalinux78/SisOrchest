@@ -81,7 +81,7 @@ CREATE TABLE IF NOT EXISTS attendance (
   recorded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_attendance_service FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE CASCADE,
   CONSTRAINT fk_attendance_musician FOREIGN KEY (musician_id) REFERENCES musicians(id) ON DELETE CASCADE,
-  CONSTRAINT uq_attendance UNIQUE (service_id, musician_id)
+  CONSTRAINT uq_attendance UNIQUE (service_id, musician_id, service_date)
 );
 
 CREATE INDEX idx_attendance_service ON attendance (service_id);

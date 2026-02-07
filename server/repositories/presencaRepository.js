@@ -288,12 +288,16 @@ export const salvarPresencasCulto = async (serviceId, presentesIds, serviceWeekd
  * @param {number|null} ocorrenciaSemana - Ocorrência da semana no mês (1-5, opcional)
  * @returns {Promise<Array>} Array com dados do relatório
  */
-export const gerarRelatorioPresenca = async (commonId, mes, ano, diaSemana = null, ocorrenciaSemana = null) => {
+export const gerarRelatorioPresenca = async (commonId, mes, ano, diaSemana = null, ocorrenciaSemana = null, specificDate = null) => {
   const params = [commonId, mes, ano]
   let weekdayFilter = ''
   let ocorrenciaFilter = ''
+  let dateFilter = ''
 
-  if (diaSemana) {
+  if (specificDate) {
+    dateFilter = 'AND DATE(a.service_date) = ?'
+    params.push(specificDate)
+  } else if (diaSemana) {
     weekdayFilter = 'AND s.weekday = ?'
     params.push(diaSemana)
   }
@@ -318,6 +322,7 @@ export const gerarRelatorioPresenca = async (commonId, mes, ano, diaSemana = nul
        AND YEAR(a.service_date) = ?
        ${weekdayFilter}
        ${ocorrenciaFilter}
+       ${dateFilter}
      GROUP BY m.id, m.name
      ORDER BY m.name ASC`,
     params,
@@ -392,13 +397,21 @@ export const gerarRankingFaltasPeriodo = async (commonId, mes, ano, diaSemana = 
  * @param {string|null} diaSemana - Dia da semana (opcional)
  * @returns {Promise<Array>} Array com histórico por data
  */
-export const gerarHistoricoPorData = async (commonId, mes, ano, diaSemana = null) => {
-  const params = [commonId, mes, ano]
-  let weekdayFilter = ''
+export const gerarHistoricoPorData = async (commonId, mes, ano, diaSemana = null, specificDate = null) => {
+  let whereClause = 'WHERE s.common_id = ?'
+  const params = [commonId]
 
-  if (diaSemana) {
-    weekdayFilter = 'AND s.weekday = ?'
-    params.push(diaSemana)
+  if (specificDate) {
+    whereClause += ' AND DATE(a.service_date) = ?'
+    params.push(specificDate)
+  } else {
+    whereClause += ' AND MONTH(a.service_date) = ? AND YEAR(a.service_date) = ?'
+    params.push(mes, ano)
+
+    if (diaSemana) {
+      whereClause += ' AND s.weekday = ?'
+      params.push(diaSemana)
+    }
   }
 
   const [rows] = await pool.query(
@@ -409,10 +422,7 @@ export const gerarHistoricoPorData = async (commonId, mes, ano, diaSemana = null
        SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) AS faltas
      FROM services s
      INNER JOIN attendance a ON a.service_id = s.id
-     WHERE s.common_id = ?
-       AND MONTH(a.service_date) = ?
-       AND YEAR(a.service_date) = ?
-       ${weekdayFilter}
+     ${whereClause}
      GROUP BY a.service_date, s.weekday
      ORDER BY a.service_date DESC`,
     params,
@@ -429,13 +439,21 @@ export const gerarHistoricoPorData = async (commonId, mes, ano, diaSemana = null
  * @param {string|null} weekday - Dia da semana (opcional)
  * @returns {Promise<Object>} Objeto com dados do relatório
  */
-export const buscarDadosRelatorioExecutivo = async (commonId, month, year, weekday = null) => {
-  const params = [commonId, month, year]
-  let weekdayFilter = ''
+export const buscarDadosRelatorioExecutivo = async (commonId, month, year, weekday = null, specificDate = null) => {
+  let whereClause = 'WHERE s.common_id = ?'
+  const params = [commonId]
 
-  if (weekday) {
-    weekdayFilter = 'AND s.weekday = ?'
-    params.push(weekday)
+  if (specificDate) {
+    whereClause += ' AND DATE(a.service_date) = ?'
+    params.push(specificDate)
+  } else {
+    whereClause += ' AND MONTH(a.service_date) = ? AND YEAR(a.service_date) = ?'
+    params.push(month, year)
+
+    if (weekday) {
+      whereClause += ' AND s.weekday = ?'
+      params.push(weekday)
+    }
   }
 
   // Busca músicos ativos da comum
@@ -450,15 +468,17 @@ export const buscarDadosRelatorioExecutivo = async (commonId, month, year, weekd
     `SELECT COUNT(DISTINCT a.service_id) AS total
      FROM services s
      INNER JOIN attendance a ON a.service_id = s.id
-     WHERE s.common_id = ?
-       AND MONTH(a.service_date) = ?
-       AND YEAR(a.service_date) = ?
-       ${weekdayFilter}`,
+     ${whereClause}`,
     params,
   )
   const totalCultosDistintos = servicesRows?.[0]?.total ?? 0
 
   // Busca presenças e faltas
+  // Reutiliza whereClause e params, mas precisa adicionar filtro de status ativo do musico?
+  // A query original tinha: AND m.status = 'active'
+  // Precisamos tomar cuidado pois whereClause já tem o WHERE.
+  // Vamos concatenar AND m.status = 'active'
+
   const [attendanceRows] = await pool.query(
     `SELECT
        SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) AS total_presencas,
@@ -466,11 +486,8 @@ export const buscarDadosRelatorioExecutivo = async (commonId, month, year, weekd
      FROM services s
      INNER JOIN attendance a ON a.service_id = s.id
      INNER JOIN musicians m ON m.id = a.musician_id
-     WHERE s.common_id = ?
-       AND MONTH(a.service_date) = ?
-       AND YEAR(a.service_date) = ?
-       AND m.status = 'active'
-       ${weekdayFilter}`,
+     ${whereClause}
+       AND m.status = 'active'`,
     params,
   )
 
@@ -492,7 +509,19 @@ export const buscarDadosRelatorioExecutivo = async (commonId, month, year, weekd
  * @param {number} year - Ano
  * @returns {Promise<Array>} Array com ranking de músicos
  */
-export const buscarRankingMusicos = async (commonId, month, year) => {
+export const buscarRankingMusicos = async (commonId, month, year, weekday = null, specificDate = null) => {
+  const params = [month, year, commonId]
+  let weekdayFilter = ''
+  let dateFilter = ''
+
+  if (specificDate) {
+    dateFilter = 'AND DATE(a.service_date) = ?'
+    params.push(specificDate)
+  } else if (weekday) {
+    weekdayFilter = 'AND s.weekday = ?'
+    params.push(weekday)
+  }
+
   const [rows] = await pool.query(
     `SELECT
        m.id,
@@ -504,13 +533,55 @@ export const buscarRankingMusicos = async (commonId, month, year) => {
        ON a.musician_id = m.id
        AND MONTH(a.service_date) = ?
        AND YEAR(a.service_date) = ?
+       ${dateFilter}
+     LEFT JOIN services s ON s.id = a.service_id
      WHERE m.common_id = ?
        AND m.status = 'active'
+       ${weekdayFilter}
      GROUP BY m.id, m.name
      HAVING presencas > 0 OR faltas > 0
      ORDER BY faltas DESC, presencas ASC`,
-    [month, year, commonId],
+    params,
   )
 
+  return rows ?? []
+}
+
+/**
+ * Busca nome da comum por ID
+ * @param {number} commonId - ID da comum
+ * @returns {Promise<string|null>} Nome da comum
+ */
+export const buscarNomeComum = async (commonId) => {
+  const [rows] = await pool.query('SELECT name FROM commons WHERE id = ?', [commonId])
+  return rows?.[0]?.name ?? null
+}
+
+/**
+ * Busca datas dos serviços realizados no período
+ */
+export const buscarDatasServicos = async (commonId, month, year, weekday = null, specificDate = null) => {
+  const params = [commonId, month, year]
+  let detailFilter = ''
+
+  if (specificDate) {
+    detailFilter = 'AND DATE(a.service_date) = ?'
+    params.push(specificDate)
+  } else if (weekday) {
+    detailFilter = 'AND a.service_weekday = ?'
+    params.push(weekday)
+  }
+
+  const [rows] = await pool.query(
+    `SELECT DISTINCT service_date, service_weekday as weekday 
+     FROM attendance a
+     INNER JOIN services s ON s.id = a.service_id
+     WHERE s.common_id = ? 
+       AND MONTH(a.service_date) = ? 
+       AND YEAR(a.service_date) = ? 
+       ${detailFilter}
+     ORDER BY service_date ASC`,
+    params
+  )
   return rows ?? []
 }

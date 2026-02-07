@@ -93,8 +93,8 @@ export async function listarCultosComPresenca(mes, ano) {
  * @param {number|null} ocorrenciaSemana - Ocorrência da semana no mês (1-5, opcional)
  * @returns {Promise<Array>} Array com dados do relatório
  */
-export async function gerarRelatorioPresenca(commonId, mes, ano, diaSemana = null, somentePresentes = false, ocorrenciaSemana = null) {
-  const dados = await presencaRepository.gerarRelatorioPresenca(commonId, mes, ano, diaSemana, ocorrenciaSemana)
+export async function gerarRelatorioPresenca(commonId, mes, ano, diaSemana = null, somentePresentes = false, ocorrenciaSemana = null, specificDate = null) {
+  const dados = await presencaRepository.gerarRelatorioPresenca(commonId, mes, ano, diaSemana, ocorrenciaSemana, specificDate)
 
   return dados.map((item) => {
     const totalEscalas = item.total_escalas || 0
@@ -122,8 +122,8 @@ export async function gerarRelatorioPresenca(commonId, mes, ano, diaSemana = nul
  * @param {string|null} diaSemana - Dia da semana (opcional)
  * @returns {Promise<Array>} Array com top 5 músicos que mais faltaram
  */
-export async function gerarRankingFaltas(commonId, mes, ano, diaSemana = null) {
-  const dados = await gerarRelatorioPresenca(commonId, mes, ano, diaSemana, false)
+export async function gerarRankingFaltas(commonId, mes, ano, diaSemana = null, specificDate = null) {
+  const dados = await gerarRelatorioPresenca(commonId, mes, ano, diaSemana, false, null, specificDate)
 
   return dados
     .filter((item) => item.total_escalas > 0)
@@ -139,8 +139,8 @@ export async function gerarRankingFaltas(commonId, mes, ano, diaSemana = null) {
  * @param {string|null} diaSemana - Dia da semana (opcional)
  * @returns {Promise<Array>} Array com top 5 músicos que mais faltaram
  */
-export async function gerarRankingFaltasPeriodo(commonId, mes, ano, diaSemana = null) {
-  const dados = await presencaRepository.gerarRankingFaltasPeriodo(commonId, mes, ano, diaSemana)
+export async function gerarRankingFaltasPeriodo(commonId, mes, ano, diaSemana = null, specificDate = null) {
+  const dados = await presencaRepository.gerarRankingFaltasPeriodo(commonId, mes, ano, diaSemana, specificDate)
 
   return dados
     .map((item) => {
@@ -171,8 +171,8 @@ export async function gerarRankingFaltasPeriodo(commonId, mes, ano, diaSemana = 
  * @param {string|null} diaSemana - Dia da semana (opcional)
  * @returns {Promise<Array>} Array com histórico por data
  */
-export async function gerarHistoricoPorData(commonId, mes, ano, diaSemana = null) {
-  const dados = await presencaRepository.gerarHistoricoPorData(commonId, mes, ano, diaSemana)
+export async function gerarHistoricoPorData(commonId, mes, ano, diaSemana = null, specificDate = null) {
+  const dados = await presencaRepository.gerarHistoricoPorData(commonId, mes, ano, diaSemana, specificDate)
 
   return dados.map((item) => ({
     service_date: String(item.service_date || ''),
@@ -190,8 +190,8 @@ export async function gerarHistoricoPorData(commonId, mes, ano, diaSemana = null
  * @param {string|null} weekday - Dia da semana (opcional)
  * @returns {Promise<Object>} Objeto com resumo executivo
  */
-export async function gerarResumoExecutivo(commonId, month, year, weekday = null) {
-  const dados = await presencaRepository.buscarDadosRelatorioExecutivo(commonId, month, year, weekday)
+export async function gerarResumoExecutivo(commonId, month, year, weekday = null, specificDate = null) {
+  const dados = await presencaRepository.buscarDadosRelatorioExecutivo(commonId, month, year, weekday, specificDate)
 
   const { total_musicos, total_cultos_distintos, total_presencas, total_faltas } = dados
 
@@ -215,8 +215,8 @@ export async function gerarResumoExecutivo(commonId, month, year, weekday = null
  * @param {number} year - Ano
  * @returns {Promise<Object>} Objeto com ranking_faltas e ranking_presencas
  */
-export async function gerarRankingMusicos(commonId, month, year) {
-  const dados = await presencaRepository.buscarRankingMusicos(commonId, month, year)
+export async function gerarRankingMusicos(commonId, month, year, weekday = null, specificDate = null) {
+  const dados = await presencaRepository.buscarRankingMusicos(commonId, month, year, weekday, specificDate)
 
   // Processa dados e calcula percentuais
   const processados = dados.map((item) => {
@@ -248,4 +248,20 @@ export async function gerarRankingMusicos(commonId, month, year) {
     ranking_faltas: rankingFaltas,
     ranking_presencas: rankingPresencas,
   }
+}
+
+/**
+ * Busca nome da comum por ID
+ * @param {number} commonId - ID da comum
+ * @returns {Promise<string|null>} Nome da comum
+ */
+export async function buscarNomeComum(commonId) {
+  return await presencaRepository.buscarNomeComum(commonId)
+}
+
+/**
+ * Busca datas dos serviços realizados no período
+ */
+export async function buscarDatasServicos(commonId, month, year, weekday = null, specificDate = null) {
+  return await presencaRepository.buscarDatasServicos(commonId, month, year, weekday, specificDate)
 }

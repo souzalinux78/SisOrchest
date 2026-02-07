@@ -1,0 +1,30 @@
+--- Verifying DB Content ---
+Direct DB Query: []
+--- SQL for listAttendance ---
+Repository filter for 2026-02-15: []
+Top 5 rows from repo: [
+  {
+    "id": 3,
+    "service_id": 2,
+    "musician_id": 1,
+    "status": "present",
+    "service_weekday": "Segunda",
+    "service_date": "2026-02-08T03:00:00.000Z",
+    "recorded_at": "2026-02-07T00:23:20.000Z",
+    "name": "José Eduardo Gonçalves de Souza",
+    "instrument": "Violoncelo",
+    "common_id": 1
+  },
+  {
+    "id": 1,
+    "service_id": 1,
+    "musician_id": 1,
+    "status": "absent",
+    "service_weekday": "Domingo",
+    "service_date": "2026-02-07T03:00:00.000Z",
+    "recorded_at": "2026-02-06T20:38:02.000Z",
+    "name": "José Eduardo Gonçalves de Souza",
+    "instrument": "Violoncelo",
+    "common_id": 1
+  }
+]

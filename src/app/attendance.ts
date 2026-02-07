@@ -42,9 +42,14 @@ let originalVisitorsCount = 0
 
 const formatBrDate = (value?: string | null) => {
   if (!value) return ''
+  // Fix timezone issue: directly format YYYY-MM-DD strings
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [year, month, day] = value.split('-')
+    return `${day}/${month}/${year}`
+  }
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
-  return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(date)
+  return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeZone: 'UTC' }).format(date)
 }
 
 const normalizeIsoDate = (value?: string | null) => {
@@ -140,16 +145,16 @@ const renderExistingAttendance = (serviceId?: number | null, serviceDate?: strin
     <div class="attendance-existing__header">Lançamentos já registrados para esta data</div>
     <ul class="attendance-existing__list">
       ${existing
-        .map(
-          (item) => `
+      .map(
+        (item) => `
           <li>
             <strong>${item.name}</strong> (${item.instrument}) —
             ${item.status === 'present' ? 'Presente' : 'Ausente'} em ${formatBrDate(item.service_date)}.
             Registrado em ${formatDateTime(item.recorded_at)}.
           </li>
         `,
-        )
-        .join('')}
+      )
+      .join('')}
     </ul>
   `
   applyExistingToChecklist(serviceId, normalizedDate)
@@ -176,15 +181,15 @@ const setAttendanceSelects = (musicians: Musician[], services: Service[]) => {
     const activeMusicians = musicians.filter((musician) => musician.status === 'active')
     listContainer.innerHTML = activeMusicians.length
       ? activeMusicians
-          .map(
-            (musician) => `
+        .map(
+          (musician) => `
         <label class="attendance-item">
           <input type="checkbox" value="${musician.id}" />
           <span>${musician.name} - ${musician.instrument}</span>
         </label>
         `,
-          )
-          .join('')
+        )
+        .join('')
       : '<span class="empty-row">Nenhum músico ativo cadastrado.</span>'
   }
 
@@ -406,7 +411,7 @@ export const setupAttendanceForm = () => {
     const checkboxes = Array.from(
       document.querySelectorAll<HTMLInputElement>('#attendance-musicians-list input[type="checkbox"]'),
     )
-    
+
     // Coleta apenas os IDs dos músicos marcados como presentes
     const presentesIds = checkboxes
       .filter((checkbox) => checkbox.checked)
@@ -419,14 +424,14 @@ export const setupAttendanceForm = () => {
         .filter(([_, status]) => status === 'present')
         .map(([id]) => id)
     )
-    
-    const hasChangesInAttendance = 
+
+    const hasChangesInAttendance =
       presentesIds.length !== originalPresentesSet.size ||
       presentesIds.some(id => !originalPresentesSet.has(id)) ||
       Array.from(originalPresentesSet).some(id => !currentPresentesSet.has(id))
 
     const visitorsChanged = visitorsCount !== originalVisitorsCount
-    
+
     if (!hasChangesInAttendance && !visitorsChanged) {
       setText('attendance-status-text', 'Nenhuma alteração para salvar.')
       return

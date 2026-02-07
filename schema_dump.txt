@@ -1,0 +1,6 @@
+[
+  {
+    "Table": "attendance",
+    "Create Table": "CREATE TABLE `attendance` (\n  `id` bigint unsigned NOT NULL AUTO_INCREMENT,\n  `service_id` bigint unsigned NOT NULL,\n  `musician_id` bigint unsigned NOT NULL,\n  `status` varchar(20) COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'present',\n  `service_weekday` varchar(20) COLLATE utf8mb4_general_ci NOT NULL,\n  `service_date` date NOT NULL,\n  `recorded_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `uq_attendance` (`service_id`,`musician_id`),\n  KEY `fk_attendance_musician` (`musician_id`),\n  KEY `idx_attendance_service` (`service_id`),\n  KEY `idx_attendance_service_date` (`service_date`),\n  CONSTRAINT `fk_attendance_musician` FOREIGN KEY (`musician_id`) REFERENCES `musicians` (`id`) ON DELETE CASCADE,\n  CONSTRAINT `fk_attendance_service` FOREIGN KEY (`service_id`) REFERENCES `services` (`id`) ON DELETE CASCADE\n) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci"
+  }
+]

@@ -41,6 +41,9 @@ function Reports() {
   const [commonId, setCommonId] = useState<number | null>(null)
   const [month, setMonth] = useState<number>(currentMonth)
   const [year, setYear] = useState<number>(currentYear)
+  const [weekday, setWeekday] = useState<string>('')
+  const [specificDate, setSpecificDate] = useState<string>('')
+  const [availableDates, setAvailableDates] = useState<Array<{ service_date: string; weekday: string }>>([])
   const [summary, setSummary] = useState<ReportSummary | null>(null)
   const [ranking, setRanking] = useState<RankingMusicos | null>(null)
   const [history, setHistory] = useState<HistoryItem[]>([])
@@ -68,7 +71,27 @@ function Reports() {
     }
 
     loadCommons()
+    loadCommons()
   }, [])
+
+  // Carrega datas disponíveis
+  useEffect(() => {
+    const loadDates = async () => {
+      if (!commonId) return
+      try {
+        const dates = await api.getAvailableServiceDates({
+          common_id: commonId,
+          month,
+          year,
+          weekday: weekday || null
+        })
+        setAvailableDates(Array.isArray(dates) ? dates : [])
+      } catch (err) {
+        console.error('Erro ao carregar datas:', err)
+      }
+    }
+    loadDates()
+  }, [commonId, month, year, weekday])
 
   const gerarRelatorio = async () => {
     if (!commonId) {
@@ -88,16 +111,22 @@ function Reports() {
           common_id: commonId,
           month,
           year,
+          weekday: weekday || null,
+          specific_date: specificDate || null,
         }),
         api.getReportsRanking({
           common_id: commonId,
           month,
           year,
+          weekday: weekday || null,
+          specific_date: specificDate || null,
         }),
         api.getReportsHistory({
           common_id: commonId,
           month,
           year,
+          weekday: weekday || null,
+          specific_date: specificDate || null,
         }),
       ])
 
@@ -134,6 +163,16 @@ function Reports() {
     { value: 10, label: 'Outubro' },
     { value: 11, label: 'Novembro' },
     { value: 12, label: 'Dezembro' },
+  ]
+
+  const diasSemana = [
+    'Domingo',
+    'Segunda',
+    'Terça',
+    'Quarta',
+    'Quinta',
+    'Sexta',
+    'Sábado',
   ]
 
   const getPercentualClass = (percentual: number) => {
@@ -209,6 +248,43 @@ function Reports() {
             </select>
           </label>
 
+          <label>
+            <span>Dia de Culto</span>
+            <select value={weekday} onChange={(e) => {
+              setWeekday(e.target.value)
+              setSpecificDate('')
+            }}>
+              <option value="">Todos</option>
+              {diasSemana.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            <span>Data Específica</span>
+            <select
+              value={specificDate}
+              onChange={(e) => setSpecificDate(e.target.value)}
+              disabled={availableDates.length === 0}
+            >
+              <option value="">Todas as datas</option>
+              {availableDates.map((date) => {
+                const dateVal = typeof date.service_date === 'string' ? date.service_date.split('T')[0] : String(date.service_date)
+                const d = new Date(dateVal)
+                // Ajuste para exibição local simplificada (sempre DD/MM)
+                const label = `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')} - ${date.weekday}`
+                return (
+                  <option key={dateVal} value={dateVal}>
+                    {label}
+                  </option>
+                )
+              })}
+            </select>
+          </label>
+
           <div style={{ display: 'flex', alignItems: 'flex-end' }}>
             <button
               className="primary"
@@ -268,7 +344,7 @@ function Reports() {
             <button
               className="primary"
               onClick={() => {
-                const url = `/api/reports/pdf?common_id=${commonId}&month=${month}&year=${year}`
+                const url = `/api/reports/pdf?common_id=${commonId}&month=${month}&year=${year}&weekday=${weekday}&specific_date=${specificDate}`
                 window.open(url, '_blank')
               }}
               disabled={!summary}

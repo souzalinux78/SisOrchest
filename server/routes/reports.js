@@ -61,6 +61,7 @@ router.get('/summary', async (req, res) => {
       monthNum,
       yearNum,
       weekdayStr,
+      req.query.specific_date,
     )
 
     return responseHandler.success(res, summary, 'Resumo executivo gerado com sucesso')
@@ -121,7 +122,7 @@ router.get('/ranking', async (req, res) => {
     }
 
     // Busca dados do ranking de músicos
-    const ranking = await presencaService.gerarRankingMusicos(commonId, monthNum, yearNum)
+    const ranking = await presencaService.gerarRankingMusicos(commonId, monthNum, yearNum, weekdayStr, req.query.specific_date)
 
     return responseHandler.success(res, ranking, 'Ranking de músicos gerado com sucesso')
   } catch (error) {
@@ -186,6 +187,7 @@ router.get('/history', async (req, res) => {
       monthNum,
       yearNum,
       weekdayStr,
+      req.query.specific_date,
     )
 
     return responseHandler.success(res, history, 'Histórico por data gerado com sucesso')
@@ -238,7 +240,7 @@ router.get('/pdf', async (req, res) => {
     }
 
     // Gera PDF
-    const doc = await relatorioPdfService.gerarPdfRelatorioExecutivo(commonId, monthNum, yearNum)
+    const doc = await relatorioPdfService.gerarPdfRelatorioExecutivo(commonId, monthNum, yearNum, req.query.weekday, req.query.specific_date)
 
     // Configura headers para download
     const meses = [
@@ -268,6 +270,32 @@ router.get('/pdf', async (req, res) => {
   } catch (error) {
     console.error('Erro ao gerar PDF executivo:', error)
     return responseHandler.error(res, 'Erro ao gerar PDF executivo', 500)
+  }
+})
+
+/**
+ * GET /api/reports/available-dates
+ * Retorna lista de datas de cultos disponíveis para o período
+ */
+router.get('/available-dates', async (req, res) => {
+  try {
+    const { common_id, month, year, weekday } = req.query
+
+    if (!common_id || !month || !year) {
+      return responseHandler.error(res, 'Parâmetros common_id, month e year são obrigatórios', 400)
+    }
+
+    const dates = await presencaService.buscarDatasServicos(
+      Number(common_id),
+      Number(month),
+      Number(year),
+      weekday ? String(weekday) : null,
+    )
+
+    return responseHandler.success(res, dates, 'Datas recuperadas com sucesso')
+  } catch (error) {
+    console.error('Erro ao buscar datas disponíveis:', error)
+    return responseHandler.error(res, 'Erro ao buscar datas disponíveis', 500)
   }
 })
 

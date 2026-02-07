@@ -202,13 +202,16 @@ export const api = {
     }
     return request<Array<{ id: number; nome: string; total_escalas: number; total_presencas: number; total_faltas: number; percentual_presenca: number; percentual_faltas: number }>>(`/attendance/relatorios/presenca?${queryParams.toString()}`)
   },
-  getReportsSummary: (params: { common_id: number; month: number; year: number; weekday?: string | null }) => {
+  getReportsSummary: (params: { common_id: number; month: number; year: number; weekday?: string | null; specific_date?: string | null }) => {
     const queryParams = new URLSearchParams()
     queryParams.set('common_id', String(params.common_id))
     queryParams.set('month', String(params.month))
     queryParams.set('year', String(params.year))
     if (params.weekday !== undefined && params.weekday !== null && params.weekday !== '') {
       queryParams.set('weekday', String(params.weekday))
+    }
+    if (params.specific_date !== undefined && params.specific_date !== null && params.specific_date !== '') {
+      queryParams.set('specific_date', String(params.specific_date))
     }
     return request<{
       total_musicos: number
@@ -218,13 +221,16 @@ export const api = {
       percentual_presenca: number
     }>(`/reports/summary?${queryParams.toString()}`)
   },
-  getReportsRanking: (params: { common_id: number; month: number; year: number; weekday?: string | null }) => {
+  getReportsRanking: (params: { common_id: number; month: number; year: number; weekday?: string | null; specific_date?: string | null }) => {
     const queryParams = new URLSearchParams()
     queryParams.set('common_id', String(params.common_id))
     queryParams.set('month', String(params.month))
     queryParams.set('year', String(params.year))
     if (params.weekday !== undefined && params.weekday !== null && params.weekday !== '') {
       queryParams.set('weekday', String(params.weekday))
+    }
+    if (params.specific_date !== undefined && params.specific_date !== null && params.specific_date !== '') {
+      queryParams.set('specific_date', String(params.specific_date))
     }
     return request<{
       ranking_faltas: Array<{
@@ -243,13 +249,16 @@ export const api = {
       }>
     }>(`/reports/ranking?${queryParams.toString()}`)
   },
-  getReportsHistory: (params: { common_id: number; month: number; year: number; weekday?: string | null }) => {
+  getReportsHistory: (params: { common_id: number; month: number; year: number; weekday?: string | null; specific_date?: string | null }) => {
     const queryParams = new URLSearchParams()
     queryParams.set('common_id', String(params.common_id))
     queryParams.set('month', String(params.month))
     queryParams.set('year', String(params.year))
     if (params.weekday !== undefined && params.weekday !== null && params.weekday !== '') {
       queryParams.set('weekday', String(params.weekday))
+    }
+    if (params.specific_date !== undefined && params.specific_date !== null && params.specific_date !== '') {
+      queryParams.set('specific_date', String(params.specific_date))
     }
     return request<
       Array<{
@@ -259,5 +268,15 @@ export const api = {
         total_faltas: number
       }>
     >(`/reports/history?${queryParams.toString()}`)
+  },
+  getAvailableServiceDates: (params: { common_id: number; month: number; year: number; weekday?: string | null }) => {
+    const queryParams = new URLSearchParams()
+    queryParams.set('common_id', String(params.common_id))
+    queryParams.set('month', String(params.month))
+    queryParams.set('year', String(params.year))
+    if (params.weekday !== undefined && params.weekday !== null && params.weekday !== '') {
+      queryParams.set('weekday', String(params.weekday))
+    }
+    return request<Array<{ service_date: string; weekday: string }>>(`/reports/available-dates?${queryParams.toString()}`)
   },
 }
