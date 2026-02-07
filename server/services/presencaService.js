@@ -236,12 +236,20 @@ export async function gerarRankingMusicos(commonId, month, year, weekday = null,
 
   // Ranking por faltas (DESC) - Top 10
   const rankingFaltas = [...processados]
-    .sort((a, b) => b.faltas - a.faltas)
+    .filter(item => item.faltas > 0)
+    .sort((a, b) => {
+      if (b.faltas !== a.faltas) return b.faltas - a.faltas;
+      return b.percentual_faltas - a.percentual_faltas;
+    })
     .slice(0, 10)
 
   // Ranking por presenças (DESC) - Top 10
   const rankingPresencas = [...processados]
-    .sort((a, b) => b.presencas - a.presencas)
+    .filter(item => item.presencas > 0)
+    .sort((a, b) => {
+      if (b.presencas !== a.presencas) return b.presencas - a.presencas;
+      return b.percentual_presenca - a.percentual_presenca;
+    })
     .slice(0, 10)
 
   return {
