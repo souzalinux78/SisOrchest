@@ -594,3 +594,36 @@ export const buscarDatasServicos = async (commonId, month, year, weekday = null,
   )
   return rows ?? []
 }
+
+/**
+ * Busca músicos presentes agrupados por data no período
+ */
+export const buscarMusicosPresentesPorData = async (commonId, month, year, weekday = null, specificDate = null) => {
+  let whereClause = 'WHERE s.common_id = ? AND a.status = ?'
+  const params = [commonId, 'present']
+
+  if (specificDate) {
+    whereClause += ' AND DATE(a.service_date) = ?'
+    params.push(specificDate)
+  } else {
+    whereClause += ' AND MONTH(a.service_date) = ? AND YEAR(a.service_date) = ?'
+    params.push(month, year)
+
+    if (weekday) {
+      whereClause += ' AND s.weekday = ?'
+      params.push(weekday)
+    }
+  }
+
+  const [rows] = await pool.query(
+    `SELECT a.service_date, s.weekday, m.name AS musician_name
+     FROM attendance a
+     INNER JOIN services s ON s.id = a.service_id
+     INNER JOIN musicians m ON m.id = a.musician_id
+     ${whereClause}
+     ORDER BY a.service_date DESC, m.name ASC`,
+    params,
+  )
+
+  return rows ?? []
+}

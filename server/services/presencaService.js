@@ -273,3 +273,34 @@ export async function buscarNomeComum(commonId) {
 export async function buscarDatasServicos(commonId, month, year, weekday = null, specificDate = null) {
   return await presencaRepository.buscarDatasServicos(commonId, month, year, weekday, specificDate)
 }
+
+/**
+ * Busca músicos presentes agrupados por data no período
+ */
+export async function buscarPresentesPorData(commonId, month, year, weekday = null, specificDate = null) {
+  const rows = await presencaRepository.buscarMusicosPresentesPorData(commonId, month, year, weekday, specificDate)
+  const grouped = new Map()
+
+  rows.forEach((item) => {
+    const dateKey = String(item.service_date || '')
+    const weekdayValue = String(item.weekday || '')
+    const musicianName = String(item.musician_name || '--')
+    const mapKey = `${dateKey}|${weekdayValue}`
+
+    if (!grouped.has(mapKey)) {
+      grouped.set(mapKey, {
+        service_date: dateKey,
+        weekday: weekdayValue,
+        musicians: [],
+      })
+    }
+    grouped.get(mapKey).musicians.push(musicianName)
+  })
+
+  return Array.from(grouped.values()).map((entry) => ({
+    service_date: entry.service_date,
+    weekday: entry.weekday,
+    total_presentes: entry.musicians.length,
+    musicians: entry.musicians,
+  }))
+}

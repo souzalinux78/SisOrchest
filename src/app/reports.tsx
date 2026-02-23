@@ -359,6 +359,13 @@ function Reports() {
         <div className="report-stack">
           <div className="report-actions-row">
             <button
+              className="secondary"
+              onClick={() => window.print()}
+              disabled={!summary}
+            >
+              Imprimir Relatorio
+            </button>
+            <button
               className="primary"
               onClick={exportarPdf}
               disabled={!summary || exportingPdf}

@@ -1,381 +1,390 @@
 import PDFDocument from 'pdfkit'
 import * as presencaService from './presencaService.js'
 
-/**
- * Service para geração de relatórios em PDF relacionados a presenças
- */
+const COLORS = {
+  PRIMARY: '#B8860B',
+  SECONDARY: '#1C1C1C',
+  ACCENT: '#333333',
+  LIGHT_BG: '#F5F5F5',
+  WHITE: '#FFFFFF',
+  DANGER: '#EF4444',
+  SUCCESS: '#10B981',
+}
 
-/**
- * Gera relatório de presença em PDF
- * @param {number} mes - Mês (1-12)
- * @param {number} ano - Ano (ex: 2024)
- * @param {number|null} diaSemana - Dia da semana opcional (1=Domingo, 2=Segunda, ..., 7=Sábado)
- * @param {boolean} somentePresentes - Se true, retorna apenas músicos com presenças > 0
- * @returns {Promise<PDFDocument>} Documento PDF gerado
- */
-export async function gerarPdfRelatorioPresenca(commonId, mes, ano, diaSemana = null, somentePresentes = false) {
-  // Busca dados do service
-  const dados = await presencaService.gerarRelatorioPresenca(commonId, mes, ano, diaSemana, somentePresentes)
+const PAGE = {
+  LEFT: 50,
+  RIGHT: 545,
+  TOP: 50,
+  BOTTOM_GUARD: 60,
+}
 
-  // Cria novo documento PDF
-  const doc = new PDFDocument({
-    size: 'A4',
-    margins: {
-      top: 50,
-      bottom: 50,
-      left: 50,
-      right: 50,
-    },
-  })
-
-  // Adiciona título
-  doc.fontSize(18)
-    .font('Helvetica-Bold')
-    .text('RELATÓRIO DE PRESENÇA', { align: 'center' })
-
-  // Adiciona mês e ano
-  doc.moveDown(1)
-    .fontSize(12)
-    .font('Helvetica')
-    .text(`Mês: ${mes} | Ano: ${ano}`, { align: 'center' })
-
-  // Se diaSemana for informado, mostrar o número do dia da semana
-  if (diaSemana !== null && diaSemana !== undefined) {
-    const diasSemana = ['', 'Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
-    const nomeDia = diasSemana[diaSemana] || `Dia ${diaSemana}`
-    doc.text(`Dia da Semana: ${nomeDia} (${diaSemana})`, { align: 'center' })
+const ensurePageSpace = (doc, neededHeight = 24) => {
+  const limit = doc.page.height - PAGE.BOTTOM_GUARD
+  if (doc.y + neededHeight > limit) {
+    doc.addPage()
+    doc.y = PAGE.TOP
+    return true
   }
+  return false
+}
 
-  // Espaçamento antes da tabela
-  doc.moveDown(2)
+const formatDateBr = (value) => {
+  if (!value) return '--'
+  const asText = String(value)
+  const iso = asText.includes('T') ? asText.split('T')[0] : asText
+  const [year, month, day] = iso.split('-')
+  if (!year || !month || !day) return asText
+  return `${day}/${month}/${year}`
+}
 
-  // Cabeçalho da tabela
-  const startY = doc.y
-  const colWidths = [200, 100, 100, 100, 100]
-  const rowHeight = 25
-  const headerY = startY
-
-  // Desenha cabeçalho da tabela
-  doc.fontSize(10)
+const drawSectionTitle = (doc, title) => {
+  ensurePageSpace(doc, 36)
+  doc
+    .fontSize(14)
     .font('Helvetica-Bold')
-    .text('Nome', 50, headerY, { width: colWidths[0] })
-    .text('Total Escalas', 50 + colWidths[0], headerY, { width: colWidths[1] })
-    .text('Total Presenças', 50 + colWidths[0] + colWidths[1], headerY, { width: colWidths[2] })
-    .text('Total Faltas', 50 + colWidths[0] + colWidths[1] + colWidths[2], headerY, { width: colWidths[3] })
-    .text('Percentual Presença', 50 + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3], headerY, { width: colWidths[4] })
+    .fillColor(COLORS.PRIMARY)
+    .text(String(title || '').toUpperCase(), PAGE.LEFT, doc.y, { align: 'left' })
 
-  // Linha separadora do cabeçalho
-  doc.moveTo(50, headerY + 20)
-    .lineTo(550, headerY + 20)
+  doc.moveDown(0.2)
+  doc
+    .lineWidth(1)
+    .moveTo(PAGE.LEFT, doc.y)
+    .lineTo(PAGE.LEFT + 150, doc.y)
+    .strokeColor(COLORS.PRIMARY)
     .stroke()
 
-  // Dados da tabela
-  let currentY = headerY + rowHeight
-  doc.fontSize(9)
-    .font('Helvetica')
+  doc.moveDown(0.8)
+}
 
-  dados.forEach((item) => {
-    // Verifica se precisa de nova página
-    if (currentY > 750) {
+const drawNoDataMessage = (doc) => {
+  ensurePageSpace(doc, 24)
+  doc
+    .fontSize(10)
+    .font('Helvetica-Oblique')
+    .fillColor(COLORS.ACCENT)
+    .text('Nenhum dado registrado para este periodo.', PAGE.LEFT, doc.y)
+}
+
+const drawHeaderRow = (doc, y, headers, widths) => {
+  doc.rect(PAGE.LEFT, y - 5, widths.reduce((acc, cur) => acc + cur, 0), 20).fill(COLORS.SECONDARY)
+
+  let x = PAGE.LEFT
+  headers.forEach((header, i) => {
+    doc
+      .fillColor(COLORS.WHITE)
+      .font('Helvetica-Bold')
+      .fontSize(9)
+      .text(header, x + 5, y, { width: widths[i], align: 'left' })
+    x += widths[i]
+  })
+}
+
+const drawGenericTable = (doc, headers, widths, rows, options = {}) => {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    drawNoDataMessage(doc)
+    return
+  }
+
+  const rowHeight = options.rowHeight || 18
+  const getCellColor = options.getCellColor || null
+  const formatCell = options.formatCell || ((value) => String(value ?? '--'))
+  const totalWidth = widths.reduce((acc, cur) => acc + cur, 0)
+  const limit = doc.page.height - PAGE.BOTTOM_GUARD
+
+  let currentY = doc.y + 8
+  if (currentY + 20 + rowHeight > limit) {
+    doc.addPage()
+    currentY = PAGE.TOP
+  }
+  drawHeaderRow(doc, currentY, headers, widths)
+  currentY += 20
+
+  rows.forEach((row, rowIndex) => {
+    if (currentY + rowHeight > limit) {
       doc.addPage()
-      currentY = 50
+      currentY = PAGE.TOP
+      drawHeaderRow(doc, currentY, headers, widths)
+      currentY += 20
     }
 
-    // Desenha linha de dados
-    doc.text(item.nome || '--', 50, currentY, { width: colWidths[0] })
-      .text(String(item.total_escalas || 0), 50 + colWidths[0], currentY, { width: colWidths[1] })
-      .text(String(item.total_presencas || 0), 50 + colWidths[0] + colWidths[1], currentY, { width: colWidths[2] })
-      .text(String(item.total_faltas || 0), 50 + colWidths[0] + colWidths[1] + colWidths[2], currentY, { width: colWidths[3] })
-      .text(`${item.percentual_presenca?.toFixed(2) || '0.00'}%`, 50 + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3], currentY, { width: colWidths[4] })
+    if (rowIndex % 2 === 0) {
+      doc.rect(PAGE.LEFT, currentY - 5, totalWidth, rowHeight).fill(COLORS.LIGHT_BG)
+    }
 
-    // Linha separadora
-    doc.moveTo(50, currentY + 15)
-      .lineTo(550, currentY + 15)
-      .stroke()
+    let x = PAGE.LEFT
+    row.forEach((cell, colIndex) => {
+      const text = formatCell(cell, rowIndex, colIndex)
+      const color = getCellColor ? getCellColor(cell, rowIndex, colIndex) : COLORS.SECONDARY
+      doc
+        .fillColor(color || COLORS.SECONDARY)
+        .font('Helvetica')
+        .fontSize(9)
+        .text(text, x + 5, currentY, { width: widths[colIndex], ellipsis: true })
+      x += widths[colIndex]
+    })
 
     currentY += rowHeight
   })
 
-  // Se não houver dados, exibe mensagem
-  if (dados.length === 0) {
-    doc.fontSize(12)
-      .font('Helvetica')
-      .text('Nenhum dado disponível para o período selecionado.', 50, currentY, { align: 'center' })
-  }
-
-  return doc
+  doc.y = currentY + 8
 }
 
-/**
- * Gera relatório executivo completo em PDF
- * @param {number} commonId - ID da comum
- * @param {number} month - Mês (1-12)
- * @param {number} year - Ano
- * @returns {Promise<PDFDocument>} Documento PDF gerado
- */
-// Constantes de cores e layout
-const COLORS = {
-  PRIMARY: '#B8860B',    // Dark Golden Rod (Cor principal do sistema)
-  SECONDARY: '#1c1c1c',  // Quase preto (Texto principal)
-  ACCENT: '#333333',     // Cinza escuro (Subtítulos)
-  LIGHT_BG: '#f5f5f5',    // Fundo alternado de tabelas
-  WHITE: '#ffffff',
-  DANGER: '#ef4444',
-  SUCCESS: '#10b981',
-}
-
-/**
- * Gera relatório executivo completo em PDF
- * @param {number} commonId - ID da comum
- * @param {number} month - Mês (1-12)
- * @param {number} year - Ano
- * @returns {Promise<PDFDocument>} Documento PDF gerado
- */
-export async function gerarPdfRelatorioExecutivo(commonId, month, year, weekday = null, specificDate = null) {
-  // Busca dados do resumo executivo, rankings, nome da comum e datas dos serviços
-  const [summary, ranking, commonName, serviceDates] = await Promise.all([
-    presencaService.gerarResumoExecutivo(commonId, month, year, weekday, specificDate),
-    presencaService.gerarRankingMusicos(commonId, month, year, weekday, specificDate),
-    presencaService.buscarNomeComum(commonId),
-    presencaService.buscarDatasServicos(commonId, month, year, weekday, specificDate),
-  ])
-
-  // Cria novo documento PDF
-  const doc = new PDFDocument({
-    size: 'A4',
-    margins: {
-      top: 50,
-      bottom: 50,
-      left: 50,
-      right: 50,
-    },
-    bufferPages: true,
-  })
-
-  // === CABEÇALHO ===
-
-  // Título Principal
-  doc.fontSize(24)
-    .font('Helvetica-Bold')
-    .fillColor(COLORS.PRIMARY)
-    .text('SISORCHEST', { align: 'center' })
-
-  // Nome da Comum
-  doc.moveDown(0.2)
-  doc.fontSize(16)
-    .font('Helvetica')
-    .fillColor(COLORS.SECONDARY)
-    .text(commonName || 'Relatório Geral', { align: 'center' })
-
-  // Mês e Ano
-  const meses = [
-    '', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-  ]
-
-  // Formatação do subtítulo
-  if (specificDate) {
-    const [ano, mes, dia] = specificDate.split('-')
-    doc.text(`Relatório do Culto: ${dia}/${mes}/${ano}`, { align: 'center' })
-  } else {
-    let periodoTexto = `${meses[month] || month} de ${year}`
-    if (weekday) {
-      periodoTexto += ` - ${weekday}s`
-    }
-    doc.text(periodoTexto, { align: 'center' })
-
-    // Lista de datas dos cultos
-    if (serviceDates && serviceDates.length > 0) {
-      const datasFormatadas = serviceDates
-        .map(d => {
-          const date = new Date(d.service_date)
-          return `${String(date.getUTCDate()).padStart(2, '0')}/${String(date.getUTCMonth() + 1).padStart(2, '0')}`
-        })
-        .join(', ')
-
-      doc.moveDown(0.3)
-      doc.fontSize(10)
-        .font('Helvetica-Oblique')
-        .text(`Datas: ${datasFormatadas}`, { align: 'center' })
-    }
-  }
-
-  // Linha separadora do cabeçalho
-  doc.moveDown(1)
-  doc.moveTo(50, doc.y)
-    .lineTo(545, doc.y)
-    .lineWidth(2)
-    .strokeColor(COLORS.PRIMARY)
-    .stroke()
-
-  doc.moveDown(2)
-
-  // === SEÇÃO: RESUMO DE PRESENÇA ===
-
-  drawSectionTitle(doc, 'RESUMO DE PRESENÇA')
-
-  const resumoY = doc.y + 10
-
-  // Cards de KPI estilizados
-  drawKpiCard(doc, 'Total de Músicos', summary.total_musicos, 50, resumoY)
-  drawKpiCard(doc, 'Cultos Realizados', summary.total_cultos_distintos, 220, resumoY)
-  drawKpiCard(doc, 'Presença Global', `${summary.percentual_presenca.toFixed(2)}%`, 390, resumoY, true)
-
-  doc.y = resumoY + 70
-
-  // Detalhamento do resumo
-  doc.fontSize(10)
-    .font('Helvetica')
-    .fillColor(COLORS.SECONDARY)
-    .text(`Total de Presenças Registradas: ${summary.total_presencas}`, 50, doc.y)
-    .text(`Total de Faltas Registradas: ${summary.total_faltas}`, 50, doc.y + 15)
-
-  doc.moveDown(4)
-
-  // === SEÇÃO: MÚSICOS COM MAIS FALTAS ===
-
-  drawSectionTitle(doc, 'MÚSICOS COM MAIS FALTAS')
-
-  if (ranking.ranking_faltas.length > 0) {
-    drawTable(doc, ranking.ranking_faltas, ['Pos.', 'Músico', 'Presenças', 'Faltas', '% Presença'], [40, 230, 80, 60, 80])
-  } else {
-    drawNoDataMessage(doc)
-  }
-
-  doc.moveDown(3)
-
-  // Verifica quebra de página
-  if (doc.y > 650) {
-    doc.addPage()
-    doc.moveDown(2) // Espaço extra se for nova página
-  }
-
-  // === SEÇÃO: MÚSICOS MAIS PRESENTES ===
-
-  drawSectionTitle(doc, 'MÚSICOS MAIS PRESENTES')
-
-  if (ranking.ranking_presencas.length > 0) {
-    drawTable(doc, ranking.ranking_presencas, ['Pos.', 'Músico', 'Presenças', 'Faltas', '% Presença'], [40, 230, 80, 60, 80])
-  } else {
-    drawNoDataMessage(doc)
-  }
-
-  // Rodapé com paginação
-  const range = doc.bufferedPageRange()
-  for (let i = range.start; i < range.start + range.count; i++) {
-    doc.switchToPage(i)
-    doc.fontSize(8)
-      .fillColor(COLORS.ACCENT)
-      .text(
-        `Gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')} - Página ${i + 1} de ${range.count}`,
-        50,
-        doc.page.height - 40,
-        { align: 'center', width: doc.page.width - 100 }
-      )
-  }
-
-  return doc
-}
-
-// === FUNÇÕES AUXILIARES DE DESIGN ===
-
-function drawSectionTitle(doc, title) {
-  doc.fontSize(14)
-    .font('Helvetica-Bold')
-    .fillColor(COLORS.PRIMARY)
-    .text(title.toUpperCase(), 50, doc.y, { align: 'left' })
-
-  doc.moveDown(0.2)
-  doc.lineWidth(1)
-    .moveTo(50, doc.y) // Linha fina abaixo do título
-    .lineTo(200, doc.y) // Linha curta estilizada
-    .strokeColor(COLORS.PRIMARY)
-    .stroke()
-
-  doc.moveDown(1)
-}
-
-function drawKpiCard(doc, label, value, x, y, isPercent = false) {
-  // Caixa
-  // doc.rect(x, y, 150, 50).fillAndStroke(COLORS.LIGHT_BG, COLORS.ACCENT) // Opcional: fundo cinza
-
-  doc.fontSize(10)
+const drawKpiCard = (doc, label, value, x, y, isPercent = false) => {
+  doc
+    .fontSize(10)
     .font('Helvetica')
     .fillColor(COLORS.ACCENT)
     .text(label, x, y)
 
-  doc.fontSize(16)
+  const numeric = Number.parseFloat(String(value).replace('%', ''))
+  const color = isPercent && numeric >= 70
+    ? COLORS.SUCCESS
+    : isPercent && numeric < 50
+      ? COLORS.DANGER
+      : COLORS.SECONDARY
+
+  doc
+    .fontSize(16)
     .font('Helvetica-Bold')
-    .fillColor(isPercent && parseFloat(value) >= 70 ? COLORS.SUCCESS : (isPercent && parseFloat(value) < 50 ? COLORS.DANGER : COLORS.SECONDARY))
-    .text(String(value), x, y + 20)
+    .fillColor(color)
+    .text(String(value), x, y + 18)
 }
 
-function drawTable(doc, data, headers, widths) {
-  const startX = 50
-  let currentY = doc.y + 10
-
-  // Cabeçalho da Tabela
-  doc.font('Helvetica-Bold').fontSize(9).fillColor(COLORS.WHITE)
-
-  // Fundo do cabeçalho
-  doc.rect(startX, currentY - 5, 500, 20).fill(COLORS.SECONDARY)
-
-  let currentX = startX
-  headers.forEach((header, i) => {
-    doc.fillColor(COLORS.WHITE).text(header, currentX + 5, currentY, { width: widths[i], align: 'left' })
-    currentX += widths[i]
-  })
-
-  currentY += 20
-
-  // Linhas
-  doc.font('Helvetica').fontSize(9).fillColor(COLORS.SECONDARY)
-
-  data.forEach((item, index) => {
-    // Zebra striping
-    if (index % 2 === 0) {
-      doc.rect(startX, currentY - 5, 500, 18).fill(COLORS.LIGHT_BG)
-    }
-
-    currentX = startX
-    doc.fillColor(COLORS.SECONDARY) // Reset cor
-
-    // Posição
-    doc.text(`${index + 1}º`, currentX + 5, currentY, { width: widths[0] })
-    currentX += widths[0]
-
-    // Nome
-    doc.text(item.musician_name, currentX + 5, currentY, { width: widths[1], ellipsis: true })
-    currentX += widths[1]
-
-    // Presenças
-    doc.text(String(item.presencas), currentX + 5, currentY, { width: widths[2] })
-    currentX += widths[2]
-
-    // Faltas
-    // Se estiver na tabela "Mais Faltas" e tiver faltas, destaca em vermelho? Opcional
-    doc.text(String(item.faltas), currentX + 5, currentY, { width: widths[3] })
-    currentX += widths[3]
-
-    // Percentual
-    const perc = item.percentual_presenca
-    const color = perc >= 70 ? COLORS.SUCCESS : (perc < 50 ? COLORS.DANGER : COLORS.SECONDARY)
-
-    doc.fillColor(color).text(`${perc.toFixed(2)}%`, currentX + 5, currentY, { width: widths[4] })
-
-    currentY += 18
-
-    // Nova página se necessário
-    if (currentY > 750) {
-      doc.addPage()
-      currentY = 50
-    }
+const drawRankingTable = (doc, items) => {
+  const headers = ['Pos.', 'Musico', 'Presencas', 'Faltas', '% Presenca']
+  const widths = [40, 230, 80, 60, 80]
+  const rows = items.map((item, index) => [
+    `${index + 1}o`,
+    item.musician_name || '--',
+    Number(item.presencas || 0),
+    Number(item.faltas || 0),
+    `${Number(item.percentual_presenca || 0).toFixed(2)}%`,
+  ])
+  drawGenericTable(doc, headers, widths, rows, {
+    getCellColor: (_cell, _rowIndex, colIndex) => (colIndex === 4 ? COLORS.SECONDARY : COLORS.SECONDARY),
   })
 }
 
-function drawNoDataMessage(doc) {
-  doc.fontSize(10)
-    .font('Helvetica-Oblique')
-    .fillColor(COLORS.ACCENT)
-    .text('Nenhum dado registrado para este período.', 50, doc.y)
+const drawHistoryTable = (doc, items) => {
+  const headers = ['Data', 'Dia da Semana', 'Presencas', 'Faltas']
+  const widths = [130, 190, 90, 90]
+  const rows = items.map((item) => [
+    formatDateBr(item.service_date),
+    item.weekday || '--',
+    Number(item.total_presencas || 0),
+    Number(item.total_faltas || 0),
+  ])
+  drawGenericTable(doc, headers, widths, rows)
+}
+
+const drawPresentesPorData = (doc, items) => {
+  items.forEach((item) => {
+    ensurePageSpace(doc, 34)
+    const header = `${formatDateBr(item.service_date)} - ${item.weekday || '--'} (${item.total_presentes || 0} presentes)`
+    doc
+      .fontSize(10)
+      .font('Helvetica-Bold')
+      .fillColor(COLORS.SECONDARY)
+      .text(header, PAGE.LEFT, doc.y)
+
+    doc.moveDown(0.2)
+
+    const names = Array.isArray(item.musicians) && item.musicians.length > 0
+      ? item.musicians.join(', ')
+      : '--'
+
+    ensurePageSpace(doc, 28)
+    doc
+      .fontSize(9)
+      .font('Helvetica')
+      .fillColor(COLORS.ACCENT)
+      .text(names, PAGE.LEFT, doc.y, { width: 495, align: 'left' })
+
+    doc.moveDown(0.4)
+    ensurePageSpace(doc, 8)
+    doc
+      .moveTo(PAGE.LEFT, doc.y)
+      .lineTo(PAGE.RIGHT, doc.y)
+      .lineWidth(0.5)
+      .strokeColor('#DDDDDD')
+      .stroke()
+    doc.moveDown(0.6)
+  })
+}
+
+/**
+ * Gera relatorio de presenca em PDF
+ */
+export async function gerarPdfRelatorioPresenca(commonId, mes, ano, diaSemana = null, somentePresentes = false) {
+  const dados = await presencaService.gerarRelatorioPresenca(commonId, mes, ano, diaSemana, somentePresentes)
+
+  const doc = new PDFDocument({
+    size: 'A4',
+    margins: { top: PAGE.TOP, bottom: 50, left: PAGE.LEFT, right: 50 },
+  })
+
+  doc
+    .fontSize(18)
+    .font('Helvetica-Bold')
+    .fillColor(COLORS.SECONDARY)
+    .text('RELATORIO DE PRESENCA', { align: 'center' })
+
+  doc
+    .moveDown(0.4)
+    .fontSize(11)
+    .font('Helvetica')
+    .text(`Mes: ${mes} | Ano: ${ano}`, { align: 'center' })
+
+  if (diaSemana !== null && diaSemana !== undefined) {
+    doc.moveDown(0.2).text(`Dia da semana: ${diaSemana}`, { align: 'center' })
+  }
+
+  drawSectionTitle(doc, 'Resumo por musico')
+  const headers = ['Nome', 'Total Escalas', 'Total Presencas', 'Total Faltas', '% Presenca']
+  const widths = [210, 85, 85, 75, 80]
+  const rows = dados.map((item) => [
+    item.nome || '--',
+    Number(item.total_escalas || 0),
+    Number(item.total_presencas || 0),
+    Number(item.total_faltas || 0),
+    `${Number(item.percentual_presenca || 0).toFixed(2)}%`,
+  ])
+  drawGenericTable(doc, headers, widths, rows)
+
+  return doc
+}
+
+/**
+ * Gera relatorio executivo completo em PDF
+ */
+export async function gerarPdfRelatorioExecutivo(commonId, month, year, weekday = null, specificDate = null) {
+  const [summary, ranking, commonName, serviceDates, historyData, presentesPorData] = await Promise.all([
+    presencaService.gerarResumoExecutivo(commonId, month, year, weekday, specificDate),
+    presencaService.gerarRankingMusicos(commonId, month, year, weekday, specificDate),
+    presencaService.buscarNomeComum(commonId),
+    presencaService.buscarDatasServicos(commonId, month, year, weekday, specificDate),
+    presencaService.gerarHistoricoPorData(commonId, month, year, weekday, specificDate),
+    presencaService.buscarPresentesPorData(commonId, month, year, weekday, specificDate),
+  ])
+
+  const doc = new PDFDocument({
+    size: 'A4',
+    margins: { top: PAGE.TOP, bottom: 50, left: PAGE.LEFT, right: 50 },
+    bufferPages: true,
+  })
+
+  const meses = [
+    '', 'Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+  ]
+
+  doc
+    .fontSize(24)
+    .font('Helvetica-Bold')
+    .fillColor(COLORS.PRIMARY)
+    .text('SISORCHEST', { align: 'center' })
+
+  doc
+    .moveDown(0.2)
+    .fontSize(16)
+    .font('Helvetica')
+    .fillColor(COLORS.SECONDARY)
+    .text(commonName || 'Relatorio Geral', { align: 'center' })
+
+  if (specificDate) {
+    doc.text(`Relatorio do culto: ${formatDateBr(specificDate)}`, { align: 'center' })
+  } else {
+    let periodoTexto = `${meses[month] || month} de ${year}`
+    if (weekday) periodoTexto += ` - ${weekday}s`
+    doc.text(periodoTexto, { align: 'center' })
+
+    if (Array.isArray(serviceDates) && serviceDates.length > 0) {
+      const datasFormatadas = serviceDates
+        .map((d) => formatDateBr(d.service_date))
+        .join(', ')
+
+      doc
+        .moveDown(0.3)
+        .fontSize(10)
+        .font('Helvetica-Oblique')
+        .fillColor(COLORS.ACCENT)
+        .text(`Datas: ${datasFormatadas}`, { align: 'center' })
+    }
+  }
+
+  doc
+    .moveDown(1)
+    .moveTo(PAGE.LEFT, doc.y)
+    .lineTo(PAGE.RIGHT, doc.y)
+    .lineWidth(2)
+    .strokeColor(COLORS.PRIMARY)
+    .stroke()
+
+  doc.moveDown(1.2)
+
+  drawSectionTitle(doc, 'Resumo de presenca')
+  const y = doc.y + 4
+  drawKpiCard(doc, 'Total de Musicos', summary.total_musicos, 50, y)
+  drawKpiCard(doc, 'Cultos Realizados', summary.total_cultos_distintos, 220, y)
+  drawKpiCard(doc, 'Presenca Global', `${Number(summary.percentual_presenca || 0).toFixed(2)}%`, 390, y, true)
+  doc.y = y + 62
+  doc
+    .fontSize(10)
+    .font('Helvetica')
+    .fillColor(COLORS.SECONDARY)
+    .text(`Total de Presencas Registradas: ${Number(summary.total_presencas || 0)}`, PAGE.LEFT, doc.y)
+    .text(`Total de Faltas Registradas: ${Number(summary.total_faltas || 0)}`, PAGE.LEFT, doc.y + 15)
+
+  doc.moveDown(3)
+
+  drawSectionTitle(doc, 'Musicos com mais faltas')
+  if (ranking?.ranking_faltas?.length > 0) {
+    drawRankingTable(doc, ranking.ranking_faltas)
+  } else {
+    drawNoDataMessage(doc)
+  }
+
+  doc.moveDown(1.5)
+
+  drawSectionTitle(doc, 'Musicos mais presentes')
+  if (ranking?.ranking_presencas?.length > 0) {
+    drawRankingTable(doc, ranking.ranking_presencas)
+  } else {
+    drawNoDataMessage(doc)
+  }
+
+  doc.moveDown(1.5)
+
+  drawSectionTitle(doc, 'Historico por data')
+  if (Array.isArray(historyData) && historyData.length > 0) {
+    drawHistoryTable(doc, historyData)
+  } else {
+    drawNoDataMessage(doc)
+  }
+
+  doc.moveDown(1.5)
+
+  drawSectionTitle(doc, 'Musicos presentes por dia')
+  if (Array.isArray(presentesPorData) && presentesPorData.length > 0) {
+    drawPresentesPorData(doc, presentesPorData)
+  } else {
+    drawNoDataMessage(doc)
+  }
+
+  const range = doc.bufferedPageRange()
+  for (let i = range.start; i < range.start + range.count; i += 1) {
+    doc.switchToPage(i)
+    doc
+      .fontSize(8)
+      .font('Helvetica')
+      .fillColor(COLORS.ACCENT)
+      .text(
+        `Gerado em ${new Date().toLocaleDateString('pt-BR')} as ${new Date().toLocaleTimeString('pt-BR')} - Pagina ${i + 1} de ${range.count}`,
+        PAGE.LEFT,
+        doc.page.height - 40,
+        { align: 'center', width: doc.page.width - 100 },
+      )
+  }
+
+  return doc
 }
