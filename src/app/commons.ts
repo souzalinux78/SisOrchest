@@ -2,12 +2,14 @@ import { api } from './api'
 import type { Common } from './api'
 import { clearTableLoading, requireConfirmClick, setButtonLoading, setHtml, setTableLoading, setText } from './dom'
 import { refreshCommonSelects } from './selectors'
+import { getCurrentUser } from './session'
 
 const renderCommonsTable = (commons: Common[]) => {
+  const isAdmin = getCurrentUser()?.role === 'admin'
   if (!commons.length) {
     return `
       <tr>
-        <td colspan="2" class="empty-row">Nenhuma comum cadastrada.</td>
+        <td colspan="${isAdmin ? 2 : 1}" class="empty-row">Nenhuma comum cadastrada.</td>
       </tr>
     `
   }
@@ -17,11 +19,15 @@ const renderCommonsTable = (commons: Common[]) => {
       (common) => `
       <tr>
         <td>${common.name}</td>
-        <td>
+        ${
+          isAdmin
+            ? `<td>
           <button class="table-action" data-action="delete" data-id="${common.id}">
             Remover
           </button>
-        </td>
+        </td>`
+            : ''
+        }
       </tr>
     `,
     )
@@ -43,8 +49,21 @@ export const loadCommonsList = async () => {
 }
 
 export const setupCommonsForm = () => {
+  const currentUser = getCurrentUser()
+  const isAdmin = currentUser?.role === 'admin'
   const saveButton = document.getElementById('common-save')
   const tableBody = document.getElementById('commons-table-body')
+  const commonNameInput = document.getElementById('common-name') as HTMLInputElement | null
+  const formCard = saveButton?.closest('.form-card') as HTMLElement | null
+  const actionsHeader = document.querySelector('.view[data-view="commons"] th:last-child') as HTMLTableCellElement | null
+
+  if (!isAdmin) {
+    if (formCard) formCard.style.display = 'none'
+    if (commonNameInput) commonNameInput.disabled = true
+    if (saveButton) saveButton.style.display = 'none'
+    if (actionsHeader) actionsHeader.style.display = 'none'
+    return
+  }
 
   saveButton?.addEventListener('click', async () => {
     const name = (document.getElementById('common-name') as HTMLInputElement | null)?.value.trim()

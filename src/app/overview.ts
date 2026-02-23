@@ -25,9 +25,7 @@ export const loadAllData = async () => {
   const commonId = currentUser?.role === 'admin' ? null : currentUser?.common_id ?? null
 
   await loadDashboardData(commonId)
-  if (currentUser?.role === 'admin') {
-    await loadCommonsList()
-  }
+  await loadCommonsList()
   await loadMusiciansList(commonId)
   await loadServicesList()
   await loadAttendanceList(commonId)
