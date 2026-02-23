@@ -142,7 +142,12 @@ const drawGenericTable = (doc, headers, widths, rows, options = {}) => {
         .fillColor(color || COLORS.SECONDARY)
         .font('Helvetica')
         .fontSize(9)
-        .text(text, x + 5, currentY, { width: widths[colIndex], ellipsis: true })
+        .text(text, x + 5, currentY, {
+          width: Math.max(20, widths[colIndex] - 10),
+          height: rowHeight - 2,
+          lineBreak: false,
+          ellipsis: true,
+        })
       x += widths[colIndex]
     })
 
@@ -227,14 +232,16 @@ const drawNamesInTwoColumns = (doc, names) => {
 
     const leftName = `${i + 1}. ${names[i]}`
     doc.text(leftName, PAGE.LEFT, rowY, {
-      width: columnWidth,
+      width: columnWidth - 4,
+      lineBreak: false,
       ellipsis: true,
     })
 
     if (names[i + 1]) {
       const rightName = `${i + 2}. ${names[i + 1]}`
       doc.text(rightName, PAGE.LEFT + columnWidth + columnGap, rowY, {
-        width: columnWidth,
+        width: columnWidth - 4,
+        lineBreak: false,
         ellipsis: true,
       })
     }
@@ -244,7 +251,7 @@ const drawNamesInTwoColumns = (doc, names) => {
 }
 
 const drawPresentesPorData = (doc, items) => {
-  items.forEach((item) => {
+  items.forEach((item, index) => {
     ensurePageSpace(doc, 34)
     const header = `${formatDateBr(item.service_date)} - ${item.weekday || '--'} (${item.total_presentes || 0} presentes)`
     doc
@@ -268,15 +275,17 @@ const drawPresentesPorData = (doc, items) => {
       drawNamesInTwoColumns(doc, names)
     }
 
-    doc.moveDown(0.4)
-    ensurePageSpace(doc, 8)
-    doc
-      .moveTo(PAGE.LEFT, doc.y)
-      .lineTo(PAGE.RIGHT, doc.y)
-      .lineWidth(0.5)
-      .strokeColor('#DDDDDD')
-      .stroke()
-    doc.moveDown(0.6)
+    if (index < items.length - 1) {
+      doc.moveDown(0.4)
+      ensurePageSpace(doc, 8)
+      doc
+        .moveTo(PAGE.LEFT, doc.y)
+        .lineTo(PAGE.RIGHT, doc.y)
+        .lineWidth(0.5)
+        .strokeColor('#DDDDDD')
+        .stroke()
+      doc.moveDown(0.6)
+    }
   })
 }
 
@@ -292,7 +301,7 @@ const addFooterPagination = (doc) => {
         `Gerado em ${new Date().toLocaleDateString('pt-BR')} as ${new Date().toLocaleTimeString('pt-BR')} - Pagina ${i + 1} de ${range.count}`,
         PAGE.LEFT,
         doc.page.height - 40,
-        { align: 'center', width: doc.page.width - 100 },
+        { align: 'center', width: doc.page.width - 100, lineBreak: false, ellipsis: true },
       )
   }
 }
