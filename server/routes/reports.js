@@ -174,6 +174,54 @@ router.get('/pdf', async (req, res) => {
   }
 })
 
+router.get('/pdf-history-presence', async (req, res) => {
+  try {
+    const commonId = parseScopedCommonId(req, res)
+    if (!commonId) return
+
+    const parsed = parseMonthYear(req.query.month, req.query.year, res)
+    if (!parsed) return
+
+    const weekdayStr = parseWeekday(req.query.weekday, res)
+    if (req.query.weekday && !weekdayStr) return
+
+    const doc = await relatorioPdfService.gerarPdfHistoricoPresentes(
+      commonId,
+      parsed.monthNum,
+      parsed.yearNum,
+      weekdayStr,
+      req.query.specific_date,
+    )
+
+    const meses = [
+      '',
+      'Janeiro',
+      'Fevereiro',
+      'Marco',
+      'Abril',
+      'Maio',
+      'Junho',
+      'Julho',
+      'Agosto',
+      'Setembro',
+      'Outubro',
+      'Novembro',
+      'Dezembro',
+    ]
+    const nomeMes = meses[parsed.monthNum] || parsed.monthNum
+    const filename = `relatorio-historico-presenca-${nomeMes}-${parsed.yearNum}.pdf`
+
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+
+    doc.pipe(res)
+    doc.end()
+  } catch (error) {
+    console.error('Erro ao gerar PDF historico de presenca:', error)
+    return responseHandler.error(res, 'Erro ao gerar PDF historico de presenca', 500)
+  }
+})
+
 router.get('/available-dates', async (req, res) => {
   try {
     const commonId = parseScopedCommonId(req, res)

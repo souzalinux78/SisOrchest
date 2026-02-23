@@ -346,5 +346,49 @@ export const api = {
 
     return response.blob()
   },
+  downloadReportsHistoryPresencePdf: async (params: {
+    common_id: number
+    month: number
+    year: number
+    weekday?: string | null
+    specific_date?: string | null
+  }) => {
+    const queryParams = new URLSearchParams()
+    queryParams.set('common_id', String(params.common_id))
+    queryParams.set('month', String(params.month))
+    queryParams.set('year', String(params.year))
+    if (params.weekday !== undefined && params.weekday !== null && params.weekday !== '') {
+      queryParams.set('weekday', String(params.weekday))
+    }
+    if (params.specific_date !== undefined && params.specific_date !== null && params.specific_date !== '') {
+      queryParams.set('specific_date', String(params.specific_date))
+    }
+
+    const currentUser = getCurrentUser()
+    const headers = new Headers()
+    if (currentUser?.access_token) {
+      const tokenType = currentUser.token_type || 'Bearer'
+      headers.set('Authorization', `${tokenType} ${currentUser.access_token}`)
+    }
+
+    const response = await fetch(`${API_BASE_URL}/reports/pdf-history-presence?${queryParams.toString()}`, {
+      method: 'GET',
+      headers,
+    })
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        setCurrentUser(null)
+        if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+          window.location.href = '/login'
+        }
+      }
+      const data = await response.json().catch(() => ({}))
+      const message = data?.message ?? 'Falha ao exportar PDF detalhado.'
+      throw new Error(message)
+    }
+
+    return response.blob()
+  },
 }
 

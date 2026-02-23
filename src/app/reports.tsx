@@ -48,6 +48,7 @@ function Reports() {
   const [history, setHistory] = useState<HistoryItem[]>([])
   const [loading, setLoading] = useState<boolean>(false)
   const [exportingPdf, setExportingPdf] = useState<boolean>(false)
+  const [exportingHistoryPdf, setExportingHistoryPdf] = useState<boolean>(false)
   const [loadingCommons, setLoadingCommons] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -70,7 +71,6 @@ function Reports() {
       }
     }
 
-    loadCommons()
     loadCommons()
   }, [])
 
@@ -210,6 +210,38 @@ function Reports() {
       setError(err instanceof Error ? err.message : 'Erro ao exportar PDF')
     } finally {
       setExportingPdf(false)
+    }
+  }
+
+  const exportarPdfHistorico = async () => {
+    if (!commonId) {
+      setError('Selecione uma comum antes de exportar o PDF detalhado')
+      return
+    }
+
+    try {
+      setExportingHistoryPdf(true)
+      setError(null)
+      const blob = await api.downloadReportsHistoryPresencePdf({
+        common_id: commonId,
+        month,
+        year,
+        weekday: weekday || null,
+        specific_date: specificDate || null,
+      })
+
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `relatorio-historico-presenca-${year}-${String(month).padStart(2, '0')}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao exportar PDF detalhado')
+    } finally {
+      setExportingHistoryPdf(false)
     }
   }
 
@@ -370,7 +402,14 @@ function Reports() {
               onClick={exportarPdf}
               disabled={!summary || exportingPdf}
             >
-              {exportingPdf ? 'Exportando...' : 'Exportar PDF'}
+              {exportingPdf ? 'Exportando...' : 'Exportar PDF Executivo'}
+            </button>
+            <button
+              className="primary"
+              onClick={exportarPdfHistorico}
+              disabled={!summary || exportingHistoryPdf}
+            >
+              {exportingHistoryPdf ? 'Exportando...' : 'Exportar PDF Historico'}
             </button>
           </div>
 

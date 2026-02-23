@@ -28,12 +28,35 @@ const ensurePageSpace = (doc, neededHeight = 24) => {
   return false
 }
 
+const toIsoDateOnly = (value) => {
+  if (!value) return null
+  if (value instanceof Date) {
+    const y = value.getUTCFullYear()
+    const m = String(value.getUTCMonth() + 1).padStart(2, '0')
+    const d = String(value.getUTCDate()).padStart(2, '0')
+    return `${y}-${m}-${d}`
+  }
+
+  const asText = String(value).trim()
+  if (!asText) return null
+  const datePart = asText.includes('T') ? asText.split('T')[0] : asText
+  if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return datePart
+
+  const parsed = new Date(asText)
+  if (!Number.isNaN(parsed.getTime())) {
+    const y = parsed.getUTCFullYear()
+    const m = String(parsed.getUTCMonth() + 1).padStart(2, '0')
+    const d = String(parsed.getUTCDate()).padStart(2, '0')
+    return `${y}-${m}-${d}`
+  }
+
+  return null
+}
+
 const formatDateBr = (value) => {
-  if (!value) return '--'
-  const asText = String(value)
-  const iso = asText.includes('T') ? asText.split('T')[0] : asText
+  const iso = toIsoDateOnly(value)
+  if (!iso) return String(value ?? '--')
   const [year, month, day] = iso.split('-')
-  if (!year || !month || !day) return asText
   return `${day}/${month}/${year}`
 }
 
@@ -160,9 +183,7 @@ const drawRankingTable = (doc, items) => {
     Number(item.faltas || 0),
     `${Number(item.percentual_presenca || 0).toFixed(2)}%`,
   ])
-  drawGenericTable(doc, headers, widths, rows, {
-    getCellColor: (_cell, _rowIndex, colIndex) => (colIndex === 4 ? COLORS.SECONDARY : COLORS.SECONDARY),
-  })
+  drawGenericTable(doc, headers, widths, rows)
 }
 
 const drawHistoryTable = (doc, items) => {
@@ -212,8 +233,25 @@ const drawPresentesPorData = (doc, items) => {
   })
 }
 
+const addFooterPagination = (doc) => {
+  const range = doc.bufferedPageRange()
+  for (let i = range.start; i < range.start + range.count; i += 1) {
+    doc.switchToPage(i)
+    doc
+      .fontSize(8)
+      .font('Helvetica')
+      .fillColor(COLORS.ACCENT)
+      .text(
+        `Gerado em ${new Date().toLocaleDateString('pt-BR')} as ${new Date().toLocaleTimeString('pt-BR')} - Pagina ${i + 1} de ${range.count}`,
+        PAGE.LEFT,
+        doc.page.height - 40,
+        { align: 'center', width: doc.page.width - 100 },
+      )
+  }
+}
+
 /**
- * Gera relatorio de presenca em PDF
+ * Gera relatorio de presenca em PDF (modulo attendance)
  */
 export async function gerarPdfRelatorioPresenca(commonId, mes, ano, diaSemana = null, somentePresentes = false) {
   const dados = await presencaService.gerarRelatorioPresenca(commonId, mes, ano, diaSemana, somentePresentes)
@@ -255,16 +293,14 @@ export async function gerarPdfRelatorioPresenca(commonId, mes, ano, diaSemana = 
 }
 
 /**
- * Gera relatorio executivo completo em PDF
+ * PDF executivo limpo (sem historico/presentes por dia)
  */
 export async function gerarPdfRelatorioExecutivo(commonId, month, year, weekday = null, specificDate = null) {
-  const [summary, ranking, commonName, serviceDates, historyData, presentesPorData] = await Promise.all([
+  const [summary, ranking, commonName, serviceDates] = await Promise.all([
     presencaService.gerarResumoExecutivo(commonId, month, year, weekday, specificDate),
     presencaService.gerarRankingMusicos(commonId, month, year, weekday, specificDate),
     presencaService.buscarNomeComum(commonId),
     presencaService.buscarDatasServicos(commonId, month, year, weekday, specificDate),
-    presencaService.gerarHistoricoPorData(commonId, month, year, weekday, specificDate),
-    presencaService.buscarPresentesPorData(commonId, month, year, weekday, specificDate),
   ])
 
   const doc = new PDFDocument({
@@ -299,10 +335,7 @@ export async function gerarPdfRelatorioExecutivo(commonId, month, year, weekday 
     doc.text(periodoTexto, { align: 'center' })
 
     if (Array.isArray(serviceDates) && serviceDates.length > 0) {
-      const datasFormatadas = serviceDates
-        .map((d) => formatDateBr(d.service_date))
-        .join(', ')
-
+      const datasFormatadas = serviceDates.map((d) => formatDateBr(d.service_date)).join(', ')
       doc
         .moveDown(0.3)
         .fontSize(10)
@@ -353,7 +386,61 @@ export async function gerarPdfRelatorioExecutivo(commonId, month, year, weekday 
     drawNoDataMessage(doc)
   }
 
-  doc.moveDown(1.5)
+  addFooterPagination(doc)
+  return doc
+}
+
+/**
+ * PDF detalhado separado: historico + musicos presentes por dia
+ */
+export async function gerarPdfHistoricoPresentes(commonId, month, year, weekday = null, specificDate = null) {
+  const [commonName, historyData, presentesPorData] = await Promise.all([
+    presencaService.buscarNomeComum(commonId),
+    presencaService.gerarHistoricoPorData(commonId, month, year, weekday, specificDate),
+    presencaService.buscarPresentesPorData(commonId, month, year, weekday, specificDate),
+  ])
+
+  const doc = new PDFDocument({
+    size: 'A4',
+    margins: { top: PAGE.TOP, bottom: 50, left: PAGE.LEFT, right: 50 },
+    bufferPages: true,
+  })
+
+  const meses = [
+    '', 'Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+  ]
+
+  doc
+    .fontSize(22)
+    .font('Helvetica-Bold')
+    .fillColor(COLORS.PRIMARY)
+    .text('RELATORIO DETALHADO DE PRESENCA', { align: 'center' })
+
+  doc
+    .moveDown(0.2)
+    .fontSize(14)
+    .font('Helvetica')
+    .fillColor(COLORS.SECONDARY)
+    .text(commonName || 'Comum', { align: 'center' })
+
+  if (specificDate) {
+    doc.text(`Data: ${formatDateBr(specificDate)}`, { align: 'center' })
+  } else {
+    let periodoTexto = `${meses[month] || month} de ${year}`
+    if (weekday) periodoTexto += ` - ${weekday}s`
+    doc.text(periodoTexto, { align: 'center' })
+  }
+
+  doc
+    .moveDown(1)
+    .moveTo(PAGE.LEFT, doc.y)
+    .lineTo(PAGE.RIGHT, doc.y)
+    .lineWidth(2)
+    .strokeColor(COLORS.PRIMARY)
+    .stroke()
+
+  doc.moveDown(1.2)
 
   drawSectionTitle(doc, 'Historico por data')
   if (Array.isArray(historyData) && historyData.length > 0) {
@@ -371,20 +458,6 @@ export async function gerarPdfRelatorioExecutivo(commonId, month, year, weekday 
     drawNoDataMessage(doc)
   }
 
-  const range = doc.bufferedPageRange()
-  for (let i = range.start; i < range.start + range.count; i += 1) {
-    doc.switchToPage(i)
-    doc
-      .fontSize(8)
-      .font('Helvetica')
-      .fillColor(COLORS.ACCENT)
-      .text(
-        `Gerado em ${new Date().toLocaleDateString('pt-BR')} as ${new Date().toLocaleTimeString('pt-BR')} - Pagina ${i + 1} de ${range.count}`,
-        PAGE.LEFT,
-        doc.page.height - 40,
-        { align: 'center', width: doc.page.width - 100 },
-      )
-  }
-
+  addFooterPagination(doc)
   return doc
 }
