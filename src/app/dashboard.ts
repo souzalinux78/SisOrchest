@@ -105,6 +105,47 @@ const renderRanking = (items: { name: string; value: number }[], emptyText: stri
 const renderList = (items: string[], emptyText: string) =>
   items.length ? `<ul class="indicator-list">${items.map((item) => `<li>${item}</li>`).join('')}</ul>` : `<span class="empty-row">${emptyText}</span>`
 
+const summarizeNames = (names: string[], limit = 6) => {
+  if (names.length <= limit) return names.join(', ')
+  const remaining = names.length - limit
+  return `${names.slice(0, limit).join(', ')} e mais ${remaining}.`
+}
+
+const renderManagementAlerts = (
+  consecutiveAbsences: string[],
+  lowFrequencyDays: Array<{ weekday: string; rate: number; presentCount: number; total: number }>,
+) => {
+  if (!consecutiveAbsences.length && !lowFrequencyDays.length) {
+    return `<span class="empty-row">Nenhum alerta no momento.</span>`
+  }
+
+  const blocks: string[] = []
+
+  if (consecutiveAbsences.length) {
+    blocks.push(`
+      <article class="management-alert management-alert--warning">
+        <h4 class="management-alert__title">Faltas consecutivas (${consecutiveAbsences.length})</h4>
+        <p class="management-alert__text">${summarizeNames(consecutiveAbsences)}</p>
+      </article>
+    `)
+  }
+
+  if (lowFrequencyDays.length) {
+    blocks.push(`
+      <article class="management-alert management-alert--danger">
+        <h4 class="management-alert__title">Cultos abaixo de 70%</h4>
+        <ul class="management-alert__list">
+          ${lowFrequencyDays
+            .map((item) => `<li>${item.weekday}: ${item.rate}% (${item.presentCount}/${item.total})</li>`)
+            .join('')}
+        </ul>
+      </article>
+    `)
+  }
+
+  return `<div class="management-alerts">${blocks.join('')}</div>`
+}
+
 const updateKpis = (
   musicians: Musician[],
   services: Service[],
@@ -139,31 +180,39 @@ const updateKpis = (
   setHtml('rank-present', `<strong>Mais presentes</strong>${renderRanking(topPresent, 'Sem dados de presença.')}`)
   setHtml('rank-absent', `<strong>Mais faltas</strong>${renderRanking(topAbsent, 'Sem dados de faltas.')}`)
 
-  const weekdayStats = weekdayOrder.map((weekday) => {
+  const serviceWeekdays = Array.from(
+    new Set(services.map((service) => service.weekday).filter((weekday): weekday is string => Boolean(weekday))),
+  ).sort((a, b) => weekdayOrder.indexOf(a) - weekdayOrder.indexOf(b))
+
+  const weekdayStatsData = serviceWeekdays.map((weekday) => {
     const records = attendance.filter((item) => item.service_weekday === weekday)
-    if (!records.length || !activeTotal) return `${weekday}: --`
+    if (!activeTotal) {
+      return { weekday, label: `${weekday}: --`, rate: 0, presentCount: 0, total: 0, hasLaunches: false }
+    }
+    if (!records.length) {
+      return { weekday, label: `${weekday}: sem lançamentos`, rate: 0, presentCount: 0, total: activeTotal, hasLaunches: false }
+    }
+
     const presentCount = new Set(
       records.filter((item) => item.status === 'present').map((item) => item.musician_id),
     ).size
     const rate = Math.round((presentCount / activeTotal) * 100)
-    return `${weekday}: ${rate}% (${presentCount}/${activeTotal})`
+    return { weekday, label: `${weekday}: ${rate}% (${presentCount}/${activeTotal})`, rate, presentCount, total: activeTotal, hasLaunches: true }
   })
-  setHtml('weekday-frequency', renderList(weekdayStats, 'Sem registros por dia.'))
 
+  setHtml(
+    'weekday-frequency',
+    renderList(weekdayStatsData.map((item) => item.label), 'Sem registros por dia de culto.'),
+  )
 
-  const lowFrequencyServices = services
-    .map((service) => {
-      if (!activeTotal) return null
-      const records = attendance.filter((item) => item.service_id === service.id)
-      const presentCount = new Set(
-        records.filter((item) => item.status === 'present').map((item) => item.musician_id),
-      ).size
-      const rate = Math.round((presentCount / activeTotal) * 100)
-      return rate > 0 && rate < 70
-        ? `${formatServiceSchedule(service.weekday, service.service_time)}: ${rate}% (${presentCount}/${activeTotal})`
-        : null
-    })
-    .filter((item): item is string => Boolean(item))
+  const lowFrequencyDays = weekdayStatsData
+    .filter((item) => item.hasLaunches && item.rate < 70)
+    .map((item) => ({
+      weekday: item.weekday,
+      rate: item.rate,
+      presentCount: item.presentCount,
+      total: item.total,
+    }))
   const consecutiveAbsences = stats
     .map((item) => {
       const sorted = item.records
@@ -177,14 +226,7 @@ const updateKpis = (
     })
     .filter((name): name is string => Boolean(name))
 
-  const alerts: string[] = []
-  if (consecutiveAbsences.length) {
-    alerts.push(`Faltas consecutivas: ${consecutiveAbsences.join(', ')}`)
-  }
-  if (lowFrequencyServices.length) {
-    alerts.push(`Cultos abaixo de 70%: ${lowFrequencyServices.join(', ')}`)
-  }
-  setHtml('attendance-alerts', renderList(alerts, 'Nenhum alerta no momento.'))
+  setHtml('attendance-alerts', renderManagementAlerts(consecutiveAbsences, lowFrequencyDays))
 }
 
 let heroRoot: any = null
