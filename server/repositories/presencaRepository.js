@@ -311,7 +311,7 @@ export const gerarRelatorioPresenca = async (commonId, mes, ano, diaSemana = nul
     `SELECT
        m.id,
        m.name AS nome,
-       COUNT(DISTINCT a.service_id) AS total_escalas,
+       COUNT(DISTINCT CONCAT(a.service_id, '|', DATE(a.service_date))) AS total_escalas,
        SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) AS total_presencas,
        SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) AS total_faltas
      FROM services s
@@ -379,7 +379,7 @@ export const gerarRankingFaltasPeriodo = async (commonId, mes, ano, diaSemana = 
     `SELECT
        m.id,
        m.name AS nome,
-       COUNT(DISTINCT a.service_id) AS total_escalas,
+       COUNT(DISTINCT CONCAT(a.service_id, '|', DATE(a.service_date))) AS total_escalas,
        SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) AS total_faltas,
        SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) AS total_presencas
      FROM services s
@@ -474,7 +474,7 @@ export const buscarDadosRelatorioExecutivo = async (commonId, month, year, weekd
 
   // Busca cultos distintos do período
   const [servicesRows] = await pool.query(
-    `SELECT COUNT(DISTINCT a.service_id) AS total
+    `SELECT COUNT(DISTINCT CONCAT(a.service_id, '|', DATE(a.service_date))) AS total
      FROM services s
      INNER JOIN attendance a ON a.service_id = s.id
      ${whereClause}`,
@@ -535,8 +535,8 @@ export const buscarRankingMusicos = async (commonId, month, year, weekday = null
     `SELECT
        m.id,
        m.name,
-       COUNT(DISTINCT CASE WHEN a.status = 'present' THEN a.service_id END) AS presencas,
-       COUNT(DISTINCT CASE WHEN a.status = 'absent' THEN a.service_id END) AS faltas
+       COUNT(DISTINCT CASE WHEN a.status = 'present' THEN CONCAT(a.service_id, '|', DATE(a.service_date)) END) AS presencas,
+       COUNT(DISTINCT CASE WHEN a.status = 'absent' THEN CONCAT(a.service_id, '|', DATE(a.service_date)) END) AS faltas
      FROM musicians m
      LEFT JOIN attendance a
        ON a.musician_id = m.id
