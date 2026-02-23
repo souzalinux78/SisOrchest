@@ -47,6 +47,7 @@ function Reports() {
   const [ranking, setRanking] = useState<RankingMusicos | null>(null)
   const [history, setHistory] = useState<HistoryItem[]>([])
   const [loading, setLoading] = useState<boolean>(false)
+  const [exportingPdf, setExportingPdf] = useState<boolean>(false)
   const [loadingCommons, setLoadingCommons] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -178,6 +179,38 @@ function Reports() {
     if (percentual >= 70) return 'kpi-card--success'
     if (percentual >= 50) return 'kpi-card--warning'
     return 'kpi-card--danger'
+  }
+
+  const exportarPdf = async () => {
+    if (!commonId) {
+      setError('Selecione uma comum antes de exportar o PDF')
+      return
+    }
+
+    try {
+      setExportingPdf(true)
+      setError(null)
+      const blob = await api.downloadReportsPdf({
+        common_id: commonId,
+        month,
+        year,
+        weekday: weekday || null,
+        specific_date: specificDate || null,
+      })
+
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `relatorio-executivo-${year}-${String(month).padStart(2, '0')}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao exportar PDF')
+    } finally {
+      setExportingPdf(false)
+    }
   }
 
   return (
@@ -327,13 +360,10 @@ function Reports() {
           <div className="report-actions-row">
             <button
               className="primary"
-              onClick={() => {
-                const url = `/api/reports/pdf?common_id=${commonId}&month=${month}&year=${year}&weekday=${weekday}&specific_date=${specificDate}`
-                window.open(url, '_blank')
-              }}
-              disabled={!summary}
+              onClick={exportarPdf}
+              disabled={!summary || exportingPdf}
             >
-              Exportar PDF
+              {exportingPdf ? 'Exportando...' : 'Exportar PDF'}
             </button>
           </div>
 
