@@ -186,6 +186,18 @@ const drawRankingTable = (doc, items) => {
   drawGenericTable(doc, headers, widths, rows)
 }
 
+const drawAlphabeticalMusiciansTable = (doc, items) => {
+  const headers = ['Musico', 'Presencas', 'Faltas', '% Presenca']
+  const widths = [300, 80, 70, 80]
+  const rows = items.map((item) => [
+    item.musician_name || '--',
+    Number(item.presencas || 0),
+    Number(item.faltas || 0),
+    `${Number(item.percentual_presenca || 0).toFixed(2)}%`,
+  ])
+  drawGenericTable(doc, headers, widths, rows)
+}
+
 const drawHistoryTable = (doc, items) => {
   const headers = ['Data', 'Dia da Semana', 'Presencas', 'Faltas']
   const widths = [130, 190, 90, 90]
@@ -331,12 +343,55 @@ export async function gerarPdfRelatorioPresenca(commonId, mes, ano, diaSemana = 
  * PDF executivo limpo (sem historico/presentes por dia)
  */
 export async function gerarPdfRelatorioExecutivo(commonId, month, year, weekday = null, specificDate = null) {
-  const [summary, ranking, commonName, serviceDates] = await Promise.all([
+  const [summary, commonName, serviceDates, activeMusicians, relatorioPresenca] = await Promise.all([
     presencaService.gerarResumoExecutivo(commonId, month, year, weekday, specificDate),
-    presencaService.gerarRankingMusicos(commonId, month, year, weekday, specificDate),
     presencaService.buscarNomeComum(commonId),
     presencaService.buscarDatasServicos(commonId, month, year, weekday, specificDate),
+    presencaService.listarMusicosAtivosComum(commonId),
+    presencaService.gerarRelatorioPresenca(commonId, month, year, weekday, false, null, specificDate),
   ])
+
+  const statsByMusicianId = new Map(
+    (Array.isArray(relatorioPresenca) ? relatorioPresenca : []).map((item) => [
+      Number(item.id),
+      {
+        presencas: Number(item.total_presencas || 0),
+        faltas: Number(item.total_faltas || 0),
+        percentual_presenca: Number(item.percentual_presenca || 0),
+      },
+    ]),
+  )
+
+  const allMusicians = (Array.isArray(activeMusicians) ? activeMusicians : [])
+    .map((musician) => {
+      const id = Number(musician.id)
+      const stats = statsByMusicianId.get(id) ?? { presencas: 0, faltas: 0, percentual_presenca: 0 }
+      return {
+        musician_id: id,
+        musician_name: String(musician.name || '--'),
+        presencas: stats.presencas,
+        faltas: stats.faltas,
+        percentual_presenca: stats.percentual_presenca,
+      }
+    })
+
+  const allMusiciansAlphabetical = allMusicians
+    .slice()
+    .sort((a, b) => a.musician_name.localeCompare(b.musician_name, 'pt-BR'))
+
+  const rankingFaltasCompleto = allMusicians
+    .slice()
+    .sort((a, b) => {
+      if (b.faltas !== a.faltas) return b.faltas - a.faltas
+      return a.musician_name.localeCompare(b.musician_name, 'pt-BR')
+    })
+
+  const rankingPresencasCompleto = allMusicians
+    .slice()
+    .sort((a, b) => {
+      if (b.presencas !== a.presencas) return b.presencas - a.presencas
+      return a.musician_name.localeCompare(b.musician_name, 'pt-BR')
+    })
 
   const doc = new PDFDocument({
     size: 'A4',
@@ -405,9 +460,18 @@ export async function gerarPdfRelatorioExecutivo(commonId, month, year, weekday 
 
   doc.moveDown(3)
 
+  drawSectionTitle(doc, 'Todos os musicos (ordem alfabetica)')
+  if (allMusiciansAlphabetical.length > 0) {
+    drawAlphabeticalMusiciansTable(doc, allMusiciansAlphabetical)
+  } else {
+    drawNoDataMessage(doc)
+  }
+
+  doc.moveDown(1.5)
+
   drawSectionTitle(doc, 'Musicos com mais faltas')
-  if (ranking?.ranking_faltas?.length > 0) {
-    drawRankingTable(doc, ranking.ranking_faltas)
+  if (rankingFaltasCompleto.length > 0) {
+    drawRankingTable(doc, rankingFaltasCompleto)
   } else {
     drawNoDataMessage(doc)
   }
@@ -415,8 +479,8 @@ export async function gerarPdfRelatorioExecutivo(commonId, month, year, weekday 
   doc.moveDown(1.5)
 
   drawSectionTitle(doc, 'Musicos mais presentes')
-  if (ranking?.ranking_presencas?.length > 0) {
-    drawRankingTable(doc, ranking.ranking_presencas)
+  if (rankingPresencasCompleto.length > 0) {
+    drawRankingTable(doc, rankingPresencasCompleto)
   } else {
     drawNoDataMessage(doc)
   }

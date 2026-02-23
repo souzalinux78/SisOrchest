@@ -275,6 +275,13 @@ export async function buscarDatasServicos(commonId, month, year, weekday = null,
 }
 
 /**
+ * Lista músicos ativos da comum
+ */
+export async function listarMusicosAtivosComum(commonId) {
+  return await presencaRepository.buscarMusicosAtivosComum(commonId)
+}
+
+/**
  * Busca músicos presentes agrupados por data no período
  */
 export async function buscarPresentesPorData(commonId, month, year, weekday = null, specificDate = null) {
