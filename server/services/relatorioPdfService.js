@@ -293,6 +293,7 @@ const addFooterPagination = (doc) => {
   const range = doc.bufferedPageRange()
   for (let i = range.start; i < range.start + range.count; i += 1) {
     doc.switchToPage(i)
+    const footerY = doc.page.height - doc.page.margins.bottom - 12
     doc
       .fontSize(8)
       .font('Helvetica')
@@ -300,8 +301,13 @@ const addFooterPagination = (doc) => {
       .text(
         `Gerado em ${new Date().toLocaleDateString('pt-BR')} as ${new Date().toLocaleTimeString('pt-BR')} - Pagina ${i + 1} de ${range.count}`,
         PAGE.LEFT,
-        doc.page.height - 40,
-        { align: 'center', width: doc.page.width - 100, lineBreak: false, ellipsis: true },
+        footerY,
+        {
+          align: 'center',
+          width: doc.page.width - PAGE.LEFT - 50,
+          lineBreak: false,
+          ellipsis: true,
+        },
       )
   }
 }
