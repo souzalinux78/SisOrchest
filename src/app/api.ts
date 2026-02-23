@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '../config'
+import { getCurrentUser, setCurrentUser } from './session'
 
 export type User = {
   id: number
@@ -8,6 +9,9 @@ export type User = {
   role: string
   status: string
   common_id?: number | null
+  access_token?: string
+  token_type?: string
+  expires_in?: string | number
 }
 
 export type Musician = {
@@ -52,14 +56,33 @@ export type AttendanceVisitors = {
 }
 
 const request = async <T>(path: string, options?: RequestInit): Promise<T> => {
+  const currentUser = getCurrentUser()
+  const headers = new Headers(options?.headers ?? {})
+  const isFormData = typeof FormData !== 'undefined' && options?.body instanceof FormData
+
+  if (!headers.has('Content-Type') && !isFormData) {
+    headers.set('Content-Type', 'application/json')
+  }
+
+  if (currentUser?.access_token && !headers.has('Authorization')) {
+    const tokenType = currentUser.token_type || 'Bearer'
+    headers.set('Authorization', `${tokenType} ${currentUser.access_token}`)
+  }
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
     ...options,
+    headers,
   })
 
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {
-    const message = data?.message ?? 'Falha ao processar a requisição.'
+    if (response.status === 401 && !path.startsWith('/auth/login')) {
+      setCurrentUser(null)
+      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+        window.location.href = '/login'
+      }
+    }
+    const message = data?.message ?? 'Falha ao processar a requisicao.'
     throw new Error(message)
   }
 
@@ -280,3 +303,4 @@ export const api = {
     return request<Array<{ service_date: string; weekday: string }>>(`/reports/available-dates?${queryParams.toString()}`)
   },
 }
+

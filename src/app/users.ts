@@ -129,7 +129,9 @@ export const setupUsersForm = () => {
   })
 
   exportButton?.addEventListener('click', async () => {
-    const users = await api.getUsers()
+    const currentUser = getCurrentUser()
+    const commonId = currentUser?.role === 'admin' ? null : currentUser?.common_id ?? null
+    const users = await api.getUsers({ common_id: commonId ?? undefined })
     const doc = new jsPDF()
     doc.setFontSize(16)
     doc.text('SisOrchest - Cadastros de usuários', 14, 20)

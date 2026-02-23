@@ -132,12 +132,24 @@ export const setupLogin = () => {
 
       applyPermissions(user)
       setLoginStatus(`Bem-vindo, ${user.name}. Acesso liberado.`, 'success')
+
+      // Update Sidebar/Header User Info
+      const userNameElem = document.getElementById('sidebar-user-name')
+      const userRoleElem = document.getElementById('sidebar-user-role')
+      const userAvatarElem = document.getElementById('sidebar-user-avatar')
+      const headerAvatarElem = document.getElementById('header-avatar')
+
+      if (userNameElem) userNameElem.textContent = user.name
+      if (userRoleElem) userRoleElem.textContent = user.role.charAt(0).toUpperCase() + user.role.slice(1)
+      if (userAvatarElem) userAvatarElem.textContent = user.name.charAt(0).toUpperCase()
+      if (headerAvatarElem) headerAvatarElem.textContent = user.name.charAt(0).toUpperCase()
+
       setText('data-status', 'Carregando dados para o dashboard...')
       await loadAllData()
 
       appRoot?.classList.remove('is-restricted')
       appRoot?.classList.add('is-authenticated')
-      document.querySelector('.shell')?.scrollIntoView({ behavior: 'smooth' })
+      window.location.href = '/'
     } catch (error) {
       setLoginStatus(error instanceof Error ? error.message : 'Falha ao autenticar.', 'error')
       const loginCard = document.querySelector('.login-card')

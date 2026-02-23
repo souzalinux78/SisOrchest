@@ -89,7 +89,7 @@ export const listVisitors = async (filters = {}) => {
  * @returns {Promise<Array>} Array com o resultado da verificação
  */
 export const checkServiceExists = async (serviceId) => {
-  const [rows] = await pool.query('SELECT id FROM services WHERE id = ?', [serviceId])
+  const [rows] = await pool.query('SELECT id, common_id FROM services WHERE id = ?', [serviceId])
   return rows ?? []
 }
 
@@ -337,13 +337,22 @@ export const gerarRelatorioPresenca = async (commonId, mes, ano, diaSemana = nul
  * @param {number} ano - Ano
  * @returns {Promise<Array>} Array com dados dos cultos
  */
-export const listarCultosComPresenca = async (mes, ano) => {
+export const listarCultosComPresenca = async (mes, ano, commonId = null) => {
+  const params = [mes, ano]
+  let commonFilter = ''
+  if (commonId) {
+    commonFilter = 'AND s.common_id = ?'
+    params.push(commonId)
+  }
+
   const [rows] = await pool.query(
     `SELECT DISTINCT a.service_id AS id, a.service_date AS data
      FROM attendance a
+     INNER JOIN services s ON s.id = a.service_id
      WHERE MONTH(a.service_date) = ? AND YEAR(a.service_date) = ?
+     ${commonFilter}
      ORDER BY a.service_date DESC`,
-    [mes, ano],
+    params,
   )
 
   return rows ?? []

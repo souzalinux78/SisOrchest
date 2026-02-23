@@ -1,47 +1,82 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
 :root {
-  --gold-main: #d4af37;
-  --gold-strong: #c9a24d;
-  --gold-soft: rgba(212, 175, 55, 0.25);
-  --black-main: #0b0b0b;
-  --black-soft: #1a1a1a;
-  --white: #ffffff;
-  --text-xs: 0.75rem;
-  --text-sm: 0.85rem;
-  --text-md: 1rem;
-  --text-lg: 1.2rem;
-  --text-xl: 1.6rem;
-  font-family: "Inter", "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-  color: var(--white);
-  background-color: var(--black-main);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --font-main: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
 * {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
+  font-family: var(--font-main);
+  font-size: var(--size-md);
   margin: 0;
-  min-width: 320px;
-  min-height: 100vh;
-  background: var(--black-main);
-  -webkit-tap-highlight-color: transparent;
-  overflow-x: hidden;
+  padding: 0;
+  background-color: var(--color-neutral-50);
+  color: var(--color-neutral-900);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin-top: 0;
+  color: var(--color-neutral-900);
+}
+
+h1 {
+  font-size: var(--size-2xl);
+  font-weight: var(--weight-semibold);
+}
+
+h2 {
+  font-size: var(--size-xl);
+  font-weight: var(--weight-semibold);
+}
+
+h3 {
+  font-size: var(--size-lg);
+  font-weight: var(--weight-medium);
 }
 
 a {
-  color: var(--gold-main);
+  color: var(--color-primary);
   text-decoration: none;
 }
 
-button,
-input {
+button {
   font-family: inherit;
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-neutral-100);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-neutral-300);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-neutral-400);
 }
 
 button:disabled {
@@ -53,6 +88,7 @@ button {
   border: none;
   background: transparent;
   color: inherit;
+  transition: var(--transition-fast);
 }
 
 #app {
@@ -63,19 +99,21 @@ button {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  background: var(--black-main);
+  background: var(--color-neutral-50);
 }
 
 .primary {
-  background: var(--gold-main);
-  color: var(--black-main);
-  border: none;
-  padding: 0.65rem 1.2rem;
-  border-radius: 999px;
-  font-weight: 700;
+  background: var(--color-primary);
+  color: var(--color-white);
+  border: 1px solid transparent;
+  min-height: 40px;
+  padding: 0.55rem 1rem;
+  border-radius: var(--radius-md);
+  font-size: var(--size-md);
+  font-weight: var(--weight-semibold);
   cursor: pointer;
-  box-shadow: 0 6px 14px rgba(212, 175, 55, 0.25);
-  transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+  box-shadow: var(--shadow-sm);
+  transition: var(--transition-fast);
 }
 
 .primary.full {
@@ -83,88 +121,100 @@ button {
 }
 
 .ghost {
-  background: transparent;
-  border: 1px solid var(--black-main);
-  color: var(--black-main);
-  padding: 0.6rem 1.1rem;
-  border-radius: 999px;
-  font-weight: 600;
+  background: var(--color-white);
+  border: 1px solid var(--color-neutral-200);
+  color: var(--color-neutral-700);
+  min-height: 40px;
+  padding: 0.55rem 1rem;
+  border-radius: var(--radius-md);
+  font-size: var(--size-md);
+  font-weight: var(--weight-medium);
   cursor: pointer;
-  transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+  transition: var(--transition-fast);
 }
 
 .ghost--dark {
-  border-color: rgba(212, 175, 55, 0.6);
-  color: var(--black-main);
-  background: var(--gold-main);
+  border-color: var(--color-neutral-300);
+  color: var(--color-neutral-900);
+  background: var(--color-white);
 }
 
 .icon-button {
-  background: var(--gold-main);
-  color: var(--black-main);
-  border: none;
-  padding: 0.5rem 0.8rem;
-  border-radius: 10px;
-  font-weight: 700;
+  background: var(--color-primary);
+  color: var(--color-white);
+  border: 1px solid transparent;
+  min-height: 40px;
+  padding: 0.5rem 0.85rem;
+  border-radius: var(--radius-md);
+  font-weight: var(--weight-semibold);
   cursor: pointer;
-  transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+  transition: var(--transition-fast);
 }
 
 .primary:hover,
 .ghost:hover,
 .icon-button:hover {
   transform: translateY(-1px);
-  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--shadow-md);
+}
+
+.primary:hover {
+  background: var(--color-primary-hover);
+}
+
+.ghost:hover {
+  background: var(--color-neutral-100);
+  border-color: var(--color-neutral-300);
 }
 
 .primary:active,
 .ghost:active,
 .icon-button:active {
   transform: translateY(0);
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-sm);
 }
 
 button:focus-visible {
-  outline: 2px solid rgba(212, 175, 55, 0.45);
+  outline: 2px solid var(--color-primary-soft);
   outline-offset: 2px;
 }
 
 .badge {
-  background: var(--gold-soft);
-  color: var(--gold-main);
-  padding: 0.3rem 0.8rem;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  padding: 0.3rem 0.7rem;
   border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 700;
+  font-size: var(--size-xs);
+  font-weight: var(--weight-semibold);
 }
 
 .eyebrow {
   display: inline-block;
   text-transform: uppercase;
-  letter-spacing: 0.2em;
-  font-size: 0.7rem;
-  color: var(--gold-strong);
-  font-weight: 700;
+  letter-spacing: 0.1em;
+  font-size: var(--size-xs);
+  color: var(--color-neutral-500);
+  font-weight: var(--weight-semibold);
 }
 
 .login-status,
 .data-status {
   min-height: 1.25rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.7);
+  font-size: var(--size-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-neutral-500);
 }
 
 .login-status.info {
-  color: var(--gold-strong);
+  color: var(--color-primary);
 }
 
 .login-status.success {
-  color: var(--gold-main);
+  color: var(--color-success);
 }
 
 .login-status.error {
-  color: #ff6b6b;
+  color: var(--color-error);
 }
 
 .data-status {

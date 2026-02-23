@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import bcrypt from 'bcryptjs'
 import { pool } from '../db.js'
-import { handleError } from './utils.js'
+import { handleError, requireAuth, resolveScopedCommonId } from './utils.js'
 
 const router = Router()
 
@@ -17,24 +17,24 @@ router.post('/register', async (req, res) => {
     const normalizedCommonId = common_id ? Number(common_id) : null
 
     if (!normalizedName || !normalizedEmail || !normalizedPhone || !normalizedPassword) {
-      return res.status(400).json({ message: 'Nome, email, celular e senha são obrigatórios.' })
+      return res.status(400).json({ message: 'Nome, email, celular e senha sao obrigatorios.' })
     }
 
     if (!normalizedCommonId && !normalizedCommon) {
-      return res.status(400).json({ message: 'Comum é obrigatória.' })
+      return res.status(400).json({ message: 'Comum e obrigatoria.' })
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(normalizedEmail)) {
-      return res.status(400).json({ message: 'E-mail inválido.' })
+      return res.status(400).json({ message: 'E-mail invalido.' })
     }
 
     if (normalizedName.length > 120 || normalizedCommon.length > 160) {
-      return res.status(400).json({ message: 'Dados informados são muito longos.' })
+      return res.status(400).json({ message: 'Dados informados sao muito longos.' })
     }
 
     if (normalizedPhone.length < 10 || normalizedPhone.length > 11) {
-      return res.status(400).json({ message: 'Celular inválido.' })
+      return res.status(400).json({ message: 'Celular invalido.' })
     }
 
     if (normalizedPassword.length < 6) {
@@ -43,7 +43,7 @@ router.post('/register', async (req, res) => {
 
     const [existingUser] = await pool.query('SELECT id FROM users WHERE email = ? LIMIT 1', [normalizedEmail])
     if (existingUser?.[0]?.id) {
-      return res.status(409).json({ message: 'Email já cadastrado.' })
+      return res.status(409).json({ message: 'Email ja cadastrado.' })
     }
 
     const passwordHash = await bcrypt.hash(normalizedPassword, 10)
@@ -54,7 +54,7 @@ router.post('/register', async (req, res) => {
         commonId,
       ])
       if (!existingCommons?.[0]?.id) {
-        return res.status(404).json({ message: 'Comum informada não encontrada.' })
+        return res.status(404).json({ message: 'Comum informada nao encontrada.' })
       }
     } else {
       const [existingCommons] = await pool.query('SELECT id FROM commons WHERE name = ? LIMIT 1', [
@@ -75,11 +75,13 @@ router.post('/register', async (req, res) => {
       [normalizedName, normalizedEmail, normalizedPhone, passwordHash, commonId],
     )
 
-    return res.status(201).json({ message: 'Cadastro enviado para aprovação do encarregado.' })
+    return res.status(201).json({ message: 'Cadastro enviado para aprovacao do encarregado.' })
   } catch (error) {
-    return handleError(res, error, 'Erro ao cadastrar usuário.')
+    return handleError(res, error, 'Erro ao cadastrar usuario.')
   }
 })
+
+router.use(requireAuth)
 
 router.get('/', async (req, res) => {
   try {
@@ -91,9 +93,11 @@ router.get('/', async (req, res) => {
       filters.push('u.status = ?')
       params.push(status)
     }
-    if (common_id) {
+
+    const scopedCommonId = resolveScopedCommonId(req, common_id)
+    if (scopedCommonId) {
       filters.push('u.common_id = ?')
-      params.push(common_id)
+      params.push(scopedCommonId)
     }
 
     const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : ''
@@ -108,7 +112,7 @@ router.get('/', async (req, res) => {
 
     return res.json(rows ?? [])
   } catch (error) {
-    return handleError(res, error, 'Erro ao listar usuários.')
+    return handleError(res, error, 'Erro ao listar usuarios.')
   }
 })
 
@@ -116,21 +120,27 @@ router.patch('/:id/approve', async (req, res) => {
   try {
     const { id } = req.params
     const { approved_by, note } = req.body ?? {}
+    const approverId = Number(req.user?.sub)
 
-    if (!approved_by) {
-      return res.status(400).json({ message: 'Aprovação deve informar o encarregado.' })
+    if (!Number.isInteger(approverId) || approverId <= 0) {
+      return res.status(401).json({ message: 'Aprovador invalido.' })
     }
+
+    if (approved_by && Number(approved_by) !== approverId) {
+      return res.status(400).json({ message: 'Aprovador invalido para aprovacao.' })
+    }
+
     if (note && String(note).length > 255) {
-      return res.status(400).json({ message: 'Nota de aprovação muito longa.' })
+      return res.status(400).json({ message: 'Nota de aprovacao muito longa.' })
     }
 
     const [approvers] = await pool.query(
       `SELECT id, role, common_id FROM users WHERE id = ? LIMIT 1`,
-      [approved_by],
+      [approverId],
     )
     const approver = approvers?.[0]
     if (!approver) {
-      return res.status(404).json({ message: 'Aprovador não encontrado.' })
+      return res.status(404).json({ message: 'Aprovador nao encontrado.' })
     }
 
     const [targets] = await pool.query(
@@ -139,20 +149,16 @@ router.patch('/:id/approve', async (req, res) => {
     )
     const targetUser = targets?.[0]
     if (!targetUser) {
-      return res.status(404).json({ message: 'Usuário não encontrado.' })
+      return res.status(404).json({ message: 'Usuario nao encontrado.' })
     }
 
     if (approver.role !== 'admin') {
       if (approver.role !== 'manager') {
-        return res.status(403).json({ message: 'Perfil sem permissão para aprovar usuários.' })
+        return res.status(403).json({ message: 'Perfil sem permissao para aprovar usuarios.' })
       }
       if (!approver.common_id || String(approver.common_id) !== String(targetUser.common_id)) {
-        return res.status(403).json({ message: 'Aprovação permitida apenas na própria comum.' })
+        return res.status(403).json({ message: 'Aprovacao permitida apenas na propria comum.' })
       }
-    }
-
-    if (req.user && String(req.user.sub) !== String(approved_by)) {
-      return res.status(400).json({ message: 'Aprovador inválido para aprovação.' })
     }
 
     const [result] = await pool.query(
@@ -161,17 +167,17 @@ router.patch('/:id/approve', async (req, res) => {
     )
 
     if (result.affectedRows === 0) {
-      return res.status(404).json({ message: 'Usuário não encontrado.' })
+      return res.status(404).json({ message: 'Usuario nao encontrado.' })
     }
 
     await pool.query(
       `INSERT INTO user_approval_audit (user_id, approved_by, note) VALUES (?, ?, ?)`,
-      [id, approved_by, note ?? null],
+      [id, approverId, note ?? null],
     )
 
-    return res.json({ message: 'Usuário aprovado.' })
+    return res.json({ message: 'Usuario aprovado.' })
   } catch (error) {
-    return handleError(res, error, 'Erro ao aprovar usuário.')
+    return handleError(res, error, 'Erro ao aprovar usuario.')
   }
 })
 

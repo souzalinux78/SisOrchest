@@ -1,120 +1,109 @@
 .data-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: var(--text-sm);
+  font-size: var(--size-sm);
   table-layout: fixed;
 }
 
 .data-table thead th {
   text-align: left;
-  padding: 0.5rem;
-  color: var(--black-main);
-  background: var(--gold-main);
+  padding: 14px var(--spacing-md);
+  color: var(--color-neutral-700);
+  background-color: var(--color-neutral-100);
+  font-weight: var(--weight-semibold);
+  border-bottom: 1px solid var(--color-neutral-200);
   word-break: break-word;
   white-space: normal;
 }
 
 .data-table tbody td {
-  padding: 0.5rem;
-  border-bottom: 1px solid rgba(212, 175, 55, 0.2);
-  color: rgba(255, 255, 255, 0.8);
+  padding: var(--spacing-md);
+  border-bottom: 1px solid var(--color-neutral-200);
+  color: var(--color-neutral-700);
   word-break: break-word;
   white-space: normal;
 }
 
 .data-table tbody tr:hover td {
-  background: rgba(212, 175, 55, 0.06);
+  background-color: var(--color-neutral-50);
 }
 
 .data-table tbody tr:last-child td {
   border-bottom: none;
 }
 
-.data-card.is-loading {
-  border-color: rgba(212, 175, 55, 0.35);
-}
-
-.skeleton-row td {
-  padding: 0.6rem;
+.empty-row {
+  text-align: center;
+  padding: var(--spacing-xl) var(--spacing-md);
+  color: var(--color-neutral-400);
 }
 
 .skeleton-line {
   display: block;
-  height: 10px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.08), rgba(212, 175, 55, 0.2), rgba(255, 255, 255, 0.08));
+  height: 12px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg,
+      var(--color-neutral-100) 25%,
+      var(--color-neutral-200) 50%,
+      var(--color-neutral-100) 75%);
   background-size: 200% 100%;
-  animation: shimmer 1.2s ease-in-out infinite;
-}
-
-.skeleton-row td:nth-child(odd) .skeleton-line {
-  width: 70%;
-}
-
-.skeleton-row td:nth-child(even) .skeleton-line {
-  width: 90%;
+  animation: shimmer 1.5s infinite;
 }
 
 @keyframes shimmer {
-  0% { background-position: 0% 0; }
-  100% { background-position: 200% 0; }
-}
+  0% {
+    background-position: 200% 0;
+  }
 
-.empty-row {
-  text-align: center;
-  padding: 1rem 0.5rem;
-  color: rgba(255, 255, 255, 0.6);
-}
-
-.sortable-header {
-  cursor: pointer;
-  user-select: none;
-  position: relative;
-  padding-right: 1.5rem;
-  transition: background-color 0.2s ease;
-}
-
-.sortable-header:hover {
-  background: rgba(212, 175, 55, 0.2);
-}
-
-.sort-indicator {
-  position: absolute;
-  right: 0.5rem;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 0.7rem;
-  color: rgba(255, 255, 255, 0.5);
-}
-
-.sortable-header[data-sort]::after {
-  content: '↕';
-  position: absolute;
-  right: 0.5rem;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 0.7rem;
-  color: rgba(255, 255, 255, 0.5);
-}
-
-.row-high-absence {
-  background: rgba(239, 68, 68, 0.15) !important;
-}
-
-.row-high-absence:hover td {
-  background: rgba(239, 68, 68, 0.25) !important;
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 .badge-excellent {
-  display: inline-block;
-  margin-left: 0.5rem;
-  padding: 0.2rem 0.5rem;
-  background: rgba(61, 202, 123, 0.2);
-  border: 1px solid rgba(61, 202, 123, 0.4);
-  border-radius: 999px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: #3dca7b;
+  display: inline-flex;
+  padding: 2px 8px;
+  background-color: var(--color-success-soft);
+  color: var(--color-success);
+  border-radius: var(--radius-full);
+  font-size: var(--size-xs);
+  font-weight: var(--weight-semibold);
   text-transform: uppercase;
-  letter-spacing: 0.02em;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-full);
+  padding: 2px 8px;
+  font-size: var(--size-xs);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+}
+
+.status-badge.is-active {
+  color: var(--color-success);
+  background: var(--color-success-soft);
+}
+
+.status-badge.is-inactive {
+  color: var(--color-neutral-600);
+  background: var(--color-neutral-100);
+}
+
+.status-badge.is-error {
+  color: var(--color-error);
+  background: var(--color-error-soft);
+}
+
+@media (max-width: 640px) {
+
+  .data-table thead th,
+  .data-table tbody td {
+    padding: var(--spacing-sm);
+  }
+
+  .data-table {
+    font-size: var(--size-xs);
+  }
 }

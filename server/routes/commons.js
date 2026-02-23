@@ -1,13 +1,24 @@
 import { Router } from 'express'
 import { pool } from '../db.js'
-import { handleError } from './utils.js'
+import { handleError, requireAuth, requireRole, resolveScopedCommonId } from './utils.js'
 
 const router = Router()
+router.use(requireAuth)
 
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
   try {
+    const isAdmin = req.user?.role === 'admin'
+    if (isAdmin) {
+      const [rows] = await pool.query(
+        'SELECT id, name, created_at, updated_at FROM commons ORDER BY name ASC',
+      )
+      return res.json(rows ?? [])
+    }
+
+    const scopedCommonId = resolveScopedCommonId(req, null)
     const [rows] = await pool.query(
-      'SELECT id, name, created_at, updated_at FROM commons ORDER BY name ASC',
+      'SELECT id, name, created_at, updated_at FROM commons WHERE id = ? ORDER BY name ASC',
+      [scopedCommonId],
     )
     return res.json(rows ?? [])
   } catch (error) {
@@ -15,11 +26,11 @@ router.get('/', async (_req, res) => {
   }
 })
 
-router.post('/', async (req, res) => {
+router.post('/', requireRole('admin'), async (req, res) => {
   try {
     const { name } = req.body ?? {}
     if (!name) {
-      return res.status(400).json({ message: 'Nome da comum é obrigatório.' })
+      return res.status(400).json({ message: 'Nome da comum e obrigatorio.' })
     }
 
     const normalizedName = String(name).trim().toUpperCase()
@@ -30,12 +41,12 @@ router.post('/', async (req, res) => {
   }
 })
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireRole('admin'), async (req, res) => {
   try {
     const { id } = req.params
     const [result] = await pool.query('DELETE FROM commons WHERE id = ?', [id])
     if (result.affectedRows === 0) {
-      return res.status(404).json({ message: 'Comum não encontrada.' })
+      return res.status(404).json({ message: 'Comum nao encontrada.' })
     }
     return res.json({ message: 'Comum removida.' })
   } catch (error) {

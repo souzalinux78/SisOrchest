@@ -1,28 +1,34 @@
+import './styles/design-system.css'
 import './styles/base.css'
-import './styles/layout.css'
-import './styles/components.css'
+import './styles/components-base.css'
+import './styles/layout-v2.css'
+import './styles/auth-v2.css'
 import './styles/tables.css'
-import './styles/responsive.css'
-import { layoutHtml } from './app/layout'
-import { setupLogin } from './app/auth'
-import { setupNavigation } from './app/navigation'
-import { loadAllData, setupFeatureHandlers } from './app/overview'
+import './styles/attendance-saas.css'
+
+import React from 'react'
+import { createRoot } from 'react-dom/client'
+import { BrowserRouter } from 'react-router-dom'
+import App from './App'
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
 }
 
-const appRoot = document.querySelector<HTMLDivElement>('#app')
-
-if (appRoot) {
-  appRoot.innerHTML = layoutHtml
-  setupLogin()
-  setupNavigation()
-  setupFeatureHandlers()
-  loadAllData()
+const container = document.getElementById('app')
+if (container) {
+  const root = createRoot(container)
+  root.render(
+    <React.StrictMode>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </React.StrictMode>
+  )
 }
 
+// Service Worker Logic
 if ('serviceWorker' in navigator) {
   let deferredInstall = null as BeforeInstallPromptEvent | null
   const installBanner = document.getElementById('pwa-install-banner')
@@ -49,12 +55,9 @@ if ('serviceWorker' in navigator) {
   installButton?.addEventListener('click', async () => {
     if (!deferredInstall) return
     deferredInstall.prompt()
-    const choice = await deferredInstall.userChoice
+    await deferredInstall.userChoice
     deferredInstall = null
     hideInstallBanner()
-    if (choice?.outcome === 'dismissed') {
-      window.localStorage.setItem('pwa-install-dismissed', 'true')
-    }
   })
 
   dismissButton?.addEventListener('click', () => {
@@ -64,7 +67,6 @@ if ('serviceWorker' in navigator) {
 
   window.addEventListener('appinstalled', () => {
     hideInstallBanner()
-    window.localStorage.removeItem('pwa-install-dismissed')
   })
 }
 
@@ -98,9 +100,6 @@ if ('serviceWorker' in navigator) {
             }
           })
         })
-      })
-      .catch(() => {
-        // Mantém silêncio caso o SW falhe no primeiro load.
       })
 
     let refreshing = false

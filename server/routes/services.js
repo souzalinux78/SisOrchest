@@ -1,8 +1,9 @@
 import { Router } from 'express'
 import { pool } from '../db.js'
-import { handleError } from './utils.js'
+import { handleError, requireAuth, resolveScopedCommonId } from './utils.js'
 
 const router = Router()
+router.use(requireAuth)
 
 router.get('/', async (req, res) => {
   try {
@@ -10,9 +11,10 @@ router.get('/', async (req, res) => {
     const filters = []
     const params = []
 
-    if (common_id) {
+    const scopedCommonId = resolveScopedCommonId(req, common_id)
+    if (scopedCommonId) {
       filters.push('s.common_id = ?')
-      params.push(common_id)
+      params.push(scopedCommonId)
     }
 
     const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : ''
@@ -36,16 +38,16 @@ router.post('/', async (req, res) => {
   try {
     const { weekday, service_time, common_id } = req.body ?? {}
 
-    if (!weekday || !service_time || !common_id) {
-      return res
-        .status(400)
-        .json({ message: 'Dia, hora e comum são obrigatórios.' })
+    if (!weekday || !service_time) {
+      return res.status(400).json({ message: 'Dia e hora sao obrigatorios.' })
     }
+
+    const scopedCommonId = resolveScopedCommonId(req, common_id, { requiredForAdmin: true })
 
     const [result] = await pool.query(
       `INSERT INTO services (weekday, service_time, common_id)
        VALUES (?, ?, ?)`,
-      [weekday, service_time, common_id],
+      [weekday, service_time, scopedCommonId],
     )
 
     return res.status(201).json({ id: result.insertId })
@@ -59,20 +61,36 @@ router.put('/:id', async (req, res) => {
     const { id } = req.params
     const { weekday, service_time, common_id } = req.body ?? {}
 
-    if (!weekday || !service_time || !common_id) {
-      return res
-        .status(400)
-        .json({ message: 'Dia, hora e comum são obrigatórios.' })
+    if (!weekday || !service_time) {
+      return res.status(400).json({ message: 'Dia e hora sao obrigatorios.' })
+    }
+
+    const params = [weekday, service_time]
+    let scopeSql = ''
+
+    if (req.user?.role === 'admin') {
+      const scopedCommonId = resolveScopedCommonId(req, common_id, { requiredForAdmin: true })
+      params.push(scopedCommonId, id)
+      scopeSql = 'common_id = ?,'
+    } else {
+      params.push(id)
+    }
+
+    if (req.user?.role !== 'admin') {
+      const scopedCommonId = resolveScopedCommonId(req, null)
+      params.push(scopedCommonId)
     }
 
     const [result] = await pool.query(
-      `UPDATE services SET weekday = ?, service_time = ?, common_id = ?
-       WHERE id = ?`,
-      [weekday, service_time, common_id, id],
+      `UPDATE services
+       SET weekday = ?, service_time = ?, ${scopeSql}
+       updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?${req.user?.role === 'admin' ? '' : ' AND common_id = ?'}`,
+      params,
     )
 
     if (result.affectedRows === 0) {
-      return res.status(404).json({ message: 'Culto não encontrado.' })
+      return res.status(404).json({ message: 'Culto nao encontrado.' })
     }
 
     return res.json({ message: 'Culto atualizado.' })
@@ -84,10 +102,19 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params
-    const [result] = await pool.query('DELETE FROM services WHERE id = ?', [id])
+    const params = [id]
+    let whereScope = ''
+
+    if (req.user?.role !== 'admin') {
+      const scopedCommonId = resolveScopedCommonId(req, null)
+      whereScope = ' AND common_id = ?'
+      params.push(scopedCommonId)
+    }
+
+    const [result] = await pool.query(`DELETE FROM services WHERE id = ?${whereScope}`, params)
 
     if (result.affectedRows === 0) {
-      return res.status(404).json({ message: 'Culto não encontrado.' })
+      return res.status(404).json({ message: 'Culto nao encontrado.' })
     }
 
     return res.json({ message: 'Culto removido.' })

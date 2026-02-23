@@ -79,8 +79,8 @@ export async function salvarPresencasCulto(serviceId, presentesIds, serviceWeekd
  * @param {number} ano - Ano
  * @returns {Promise<Array>} Array com dados dos cultos
  */
-export async function listarCultosComPresenca(mes, ano) {
-  return await presencaRepository.listarCultosComPresenca(mes, ano)
+export async function listarCultosComPresenca(mes, ano, commonId = null) {
+  return await presencaRepository.listarCultosComPresenca(mes, ano, commonId)
 }
 
 /**

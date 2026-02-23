@@ -1,5 +1,3 @@
-import { loadReports } from './reports'
-
 const titleByView: Record<string, string> = {
   dashboard: 'Dashboard principal',
   musicians: 'Gestão de músicos',
@@ -11,7 +9,7 @@ const titleByView: Record<string, string> = {
 }
 
 export const setupNavigation = () => {
-  const menuItems = document.querySelectorAll<HTMLButtonElement>('.menu__item')
+  const menuItems = document.querySelectorAll<HTMLButtonElement>('.nav-item')
   const views = document.querySelectorAll<HTMLElement>('.view')
   const appBarTitle = document.getElementById('appbar-title')
   const appRoot = document.querySelector('.app')
@@ -20,16 +18,15 @@ export const setupNavigation = () => {
 
   const activateView = (viewId: string) => {
     menuItems.forEach((item) => {
-      item.classList.toggle('active', item.dataset.view === viewId)
+      item.classList.toggle('is-active', item.dataset.view === viewId)
     })
     views.forEach((view) => {
+      // In SaaS V2, views use .view class and we toggle active state
+      view.classList.toggle('active', view.dataset.view === viewId)
       view.classList.toggle('is-active', view.dataset.view === viewId)
     })
     if (appBarTitle) {
       appBarTitle.textContent = titleByView[viewId] ?? 'SisOrchest'
-    }
-    if (viewId === 'reports') {
-      loadReports()
     }
   }
 

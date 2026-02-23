@@ -1,6 +1,9 @@
 import { api } from './api'
 import type { Attendance, Musician, Service } from './api'
 import { clearTableLoading, clearTextLoading, formatServiceSchedule, setHtml, setTableLoading, setText, setTextLoading } from './dom'
+import React from 'react'
+import { createRoot } from 'react-dom/client'
+import { HeroCard } from '../components/HeroCard'
 
 const weekdayOrder = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
 
@@ -80,7 +83,6 @@ const calculateAttendanceRate = (attendance: Attendance[], activeMusicians: Musi
   return { rate, present: presentCount, absences }
 }
 
-const getUpcomingServices = (services: Service[]) => services
 
 const buildMusicianStats = (musicians: Musician[], attendance: Attendance[], totalServices: number) =>
   musicians.map((musician) => {
@@ -109,34 +111,20 @@ const updateKpis = (
   attendance: Attendance[],
 ) => {
   const activeMusicians = musicians.filter((musician) => musician.status === 'active')
-  const upcomingServices = getUpcomingServices(services)
   const { rate, present, absences } = calculateAttendanceRate(attendance, activeMusicians)
   const totalServices = services.length
   const stats = buildMusicianStats(activeMusicians, attendance, totalServices)
   const activeTotal = activeMusicians.length
-  const averageRate = activeTotal
-    ? Math.round((present / activeTotal) * 100)
-    : 0
 
   setText('kpi-musicians', `${musicians.length}`)
   setText('kpi-musicians-detail', `Ativos: ${activeMusicians.length}`)
 
-  setText('kpi-services', `${upcomingServices.length}`)
-  setText(
-    'kpi-services-detail',
-    upcomingServices[0]
-      ? `Próximo: ${formatServiceSchedule(upcomingServices[0].weekday, upcomingServices[0].service_time)}`
-      : 'Sem agenda',
-  )
-
   setText('kpi-attendance', `${rate}%`)
   setText('kpi-attendance-detail', `Presentes: ${present} de ${activeTotal}`)
   setText('kpi-launches', `${attendance.length}`)
-  setText('kpi-launches-detail', 'Total de registros')
+  setText('kpi-launches-detail', `Total de registros`)
   setText('kpi-absences', `${absences}`)
-  setText('kpi-absences-detail', 'Ausências contabilizadas')
-  setText('kpi-average', `${averageRate}%`)
-  setText('kpi-average-detail', 'Presença média')
+  setText('kpi-absences-detail', `Ausências contabilizadas`)
 
   const topPresent = stats
     .slice()
@@ -162,18 +150,6 @@ const updateKpis = (
   })
   setHtml('weekday-frequency', renderList(weekdayStats, 'Sem registros por dia.'))
 
-  const serviceComparison = services.map((service) => {
-    const records = attendance.filter((item) => item.service_id === service.id)
-    if (!records.length || !activeTotal) {
-      return `${formatServiceSchedule(service.weekday, service.service_time)}: sem registros`
-    }
-    const presentCount = new Set(
-      records.filter((item) => item.status === 'present').map((item) => item.musician_id),
-    ).size
-    const rate = Math.round((presentCount / activeTotal) * 100)
-    return `${formatServiceSchedule(service.weekday, service.service_time)}: ${rate}% (${presentCount}/${activeTotal})`
-  })
-  setHtml('service-comparison', renderList(serviceComparison, 'Sem dados de comparação.'))
 
   const lowFrequencyServices = services
     .map((service) => {
@@ -211,6 +187,8 @@ const updateKpis = (
   setHtml('attendance-alerts', renderList(alerts, 'Nenhum alerta no momento.'))
 }
 
+let heroRoot: any = null
+
 export const loadDashboardData = async (commonId?: number | null) => {
   setText('data-status', 'Sincronizando dados com a API...')
   setTextLoading([
@@ -220,12 +198,8 @@ export const loadDashboardData = async (commonId?: number | null) => {
     'kpi-launches-detail',
     'kpi-absences',
     'kpi-absences-detail',
-    'kpi-average',
-    'kpi-average-detail',
     'kpi-musicians',
     'kpi-musicians-detail',
-    'kpi-services',
-    'kpi-services-detail',
   ])
   setTableLoading('musicians-body', 3)
   setTableLoading('services-body', 2)
@@ -239,6 +213,40 @@ export const loadDashboardData = async (commonId?: number | null) => {
     ])
 
     updateKpis(musicians, services, attendance)
+
+    // Bridge for legacy buttons
+    document.querySelectorAll('.view-all-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const target = (btn as HTMLElement).dataset.target
+        if (target) window.location.href = `/${target}`
+      })
+    })
+
+    // Render Hero Card or Dashboard Content
+    const heroContainer = document.getElementById('dashboard-hero-container')
+    if (heroContainer) {
+      if (services.length === 0) {
+        if (!heroRoot) heroRoot = createRoot(heroContainer)
+        heroRoot.render(
+          React.createElement(HeroCard, {
+            title: "Atenção",
+            status: "Nenhum culto aberto",
+            description: "No momento não há cultos agendados para sua comum. Clique no botão abaixo para criar o primeiro evento da sua orquestra.",
+            actionLabel: "Criar novo culto",
+            onAction: () => {
+              window.location.href = '/services'
+            }
+          })
+        )
+      } else {
+        if (heroRoot) {
+          heroRoot.unmount()
+          heroRoot = null
+        }
+        heroContainer.innerHTML = ''
+      }
+    }
+
     setHtml('musicians-body', renderMusicians(musicians))
     setHtml('services-body', renderServices(services))
     setHtml('attendance-body', renderAttendance(attendance))
@@ -254,12 +262,8 @@ export const loadDashboardData = async (commonId?: number | null) => {
       'kpi-launches-detail',
       'kpi-absences',
       'kpi-absences-detail',
-      'kpi-average',
-      'kpi-average-detail',
       'kpi-musicians',
       'kpi-musicians-detail',
-      'kpi-services',
-      'kpi-services-detail',
     ])
     clearTableLoading('musicians-body')
     clearTableLoading('services-body')

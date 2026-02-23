@@ -13,9 +13,9 @@ import * as presencaService from './presencaService.js'
  * @param {boolean} somentePresentes - Se true, retorna apenas músicos com presenças > 0
  * @returns {Promise<PDFDocument>} Documento PDF gerado
  */
-export async function gerarPdfRelatorioPresenca(mes, ano, diaSemana = null, somentePresentes = false) {
+export async function gerarPdfRelatorioPresenca(commonId, mes, ano, diaSemana = null, somentePresentes = false) {
   // Busca dados do service
-  const dados = await presencaService.gerarRelatorioPresenca(mes, ano, diaSemana, somentePresentes)
+  const dados = await presencaService.gerarRelatorioPresenca(commonId, mes, ano, diaSemana, somentePresentes)
 
   // Cria novo documento PDF
   const doc = new PDFDocument({

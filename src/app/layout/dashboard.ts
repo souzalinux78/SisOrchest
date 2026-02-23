@@ -1,120 +1,148 @@
 export const dashboardView = `
-  <section class="view is-active" data-view="dashboard">
-    <section class="dashboard">
+  <section id="view-dashboard" class="view active">
+    <!-- Hero/State -->
+    <div id="dashboard-hero-container"></div>
+
+    <div class="dashboard-content">
+      <!-- KPIs Grid -->
       <div class="kpi-grid">
         <article class="kpi-card">
-          <span class="kpi-label">Presença geral</span>
-          <strong id="kpi-attendance" class="kpi-value">--</strong>
-          <span id="kpi-attendance-detail" class="kpi-detail">Base: --</span>
+          <div class="kpi-icon">📈</div>
+          <div class="kpi-body">
+            <span class="kpi-label">Presença geral</span>
+            <strong id="kpi-attendance" class="kpi-value">--</strong>
+            <span id="kpi-attendance-detail" class="kpi-detail">Base: --</span>
+          </div>
         </article>
+        
         <article class="kpi-card">
-          <span class="kpi-label">Lançamentos no período</span>
-          <strong id="kpi-launches" class="kpi-value">--</strong>
-          <span id="kpi-launches-detail" class="kpi-detail">Total de registros</span>
+          <div class="kpi-icon">📝</div>
+          <div class="kpi-body">
+            <span class="kpi-label">Lançamentos</span>
+            <strong id="kpi-launches" class="kpi-value">--</strong>
+            <span id="kpi-launches-detail" class="kpi-detail">Total no período</span>
+          </div>
         </article>
+
         <article class="kpi-card">
-          <span class="kpi-label">Faltas registradas</span>
-          <strong id="kpi-absences" class="kpi-value">--</strong>
-          <span id="kpi-absences-detail" class="kpi-detail">Ausências contabilizadas</span>
+          <div class="kpi-icon">⚠️</div>
+          <div class="kpi-body">
+            <span class="kpi-label">Faltas</span>
+            <strong id="kpi-absences" class="kpi-value">--</strong>
+            <span id="kpi-absences-detail" class="kpi-detail">Registradas</span>
+          </div>
         </article>
+
         <article class="kpi-card">
-          <span class="kpi-label">Frequência média por músico</span>
-          <strong id="kpi-average" class="kpi-value">--</strong>
-          <span id="kpi-average-detail" class="kpi-detail">Presença média</span>
-        </article>
-        <article class="kpi-card">
-          <span class="kpi-label">Músicos ativos</span>
-          <strong id="kpi-musicians" class="kpi-value">--</strong>
-          <span id="kpi-musicians-detail" class="kpi-detail">Ativos: --</span>
-        </article>
-        <article class="kpi-card">
-          <span class="kpi-label">Cultos cadastrados</span>
-          <strong id="kpi-services" class="kpi-value">--</strong>
-          <span id="kpi-services-detail" class="kpi-detail">Próximo: --</span>
+          <div class="kpi-icon">👤</div>
+          <div class="kpi-body">
+            <span class="kpi-label">Músicos Ativos</span>
+            <strong id="kpi-musicians" class="kpi-value">--</strong>
+            <span id="kpi-musicians-detail" class="kpi-detail">Cadastrados: --</span>
+          </div>
         </article>
       </div>
 
-      <section class="data-section">
+      <!-- Operational Recap -->
+      <div class="data-section dashboard-section">
         <div class="data-header">
           <div>
-            <h2>Dados operacionais</h2>
-            <p>Atualização em tempo real do SisOrchest.</p>
+            <h2>Resumo da Orquestra</h2>
+            <p>Atividade recente e cultos agendados.</p>
           </div>
-          <button id="refresh-data" class="ghost">Atualizar dados</button>
-        </div>
-        <div id="data-status" class="data-status"></div>
-
-        <div class="data-grid">
-          <div class="data-card">
-            <h3>Músicos</h3>
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Nome</th>
-                  <th>Instrumento</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody id="musicians-body"></tbody>
-            </table>
-          </div>
-
-          <div class="data-card">
-            <h3>Cultos</h3>
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Dia/Hora</th>
-                  <th>Comum</th>
-                </tr>
-              </thead>
-              <tbody id="services-body"></tbody>
-            </table>
-          </div>
-
-          <div class="data-card">
-            <h3>Presenças</h3>
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Músico</th>
-                  <th>Instrumento</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody id="attendance-body"></tbody>
-            </table>
+          <div class="header-actions">
+            <button id="refresh-data" class="btn btn--secondary btn--sm">
+              Sincronizar Dados
+            </button>
+            <div id="data-status" class="data-status-tag"></div>
           </div>
         </div>
-      </section>
 
-      <section class="data-section">
+        <div class="dashboard-grid">
+          <!-- Recent Musicians -->
+          <div class="card-saas">
+            <div class="card-header">
+              <h3 class="card-title">Músicos</h3>
+              <p class="card-description">Últimos ativos</p>
+            </div>
+            <div class="card-content card-content--no-padding">
+              <table class="data-table">
+                <tbody id="musicians-body"></tbody>
+              </table>
+            </div>
+            <div class="card-footer">
+              <button class="btn btn--ghost btn--sm view-all-btn" data-target="musicians">Ver todos</button>
+            </div>
+          </div>
+
+          <!-- Upcoming Services -->
+          <div class="card-saas">
+            <div class="card-header">
+              <h3 class="card-title">Cultos</h3>
+              <p class="card-description">Próximos horários</p>
+            </div>
+            <div class="card-content card-content--no-padding">
+              <table class="data-table">
+                <tbody id="services-body"></tbody>
+              </table>
+            </div>
+            <div class="card-footer">
+              <button class="btn btn--ghost btn--sm view-all-btn" data-target="services">Gerenciar</button>
+            </div>
+          </div>
+
+          <!-- Recent Attendance -->
+          <div class="card-saas">
+            <div class="card-header">
+              <h3 class="card-title">Presenças</h3>
+              <p class="card-description">Registros recentes</p>
+            </div>
+            <div class="card-content card-content--no-padding">
+              <table class="data-table">
+                <tbody id="attendance-body"></tbody>
+              </table>
+            </div>
+            <div class="card-footer">
+              <button class="btn btn--ghost btn--sm view-all-btn" data-target="attendance">Relatório completo</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Analytical Section -->
+      <div class="data-section dashboard-section">
         <div class="data-header">
           <div>
-            <h2>Insights de presença</h2>
-            <p>Indicadores e alertas para decisões rápidas.</p>
+            <h2>Análise e Performance</h2>
+            <p>Indicadores estratégicos de frequência.</p>
           </div>
         </div>
-        <div class="data-grid">
-          <div class="data-card">
-            <h3>Ranking de músicos</h3>
-            <div id="rank-present" class="data-status"></div>
-            <div id="rank-absent" class="data-status"></div>
+        
+        <div class="dashboard-grid">
+          <div class="card-saas">
+             <div class="card-header"><h3 class="card-title">Rankings</h3></div>
+             <div class="card-content">
+                <div id="rank-present"></div>
+                <div id="rank-absent" class="rank-gap"></div>
+             </div>
           </div>
-          <div class="data-card">
-            <h3>Frequência por dia</h3>
-            <div id="weekday-frequency" class="data-status"></div>
+          
+          <div class="card-saas">
+             <div class="card-header"><h3 class="card-title">Alertas de Gestão</h3></div>
+             <div class="card-content">
+                <div id="attendance-alerts"></div>
+             </div>
           </div>
-          <div class="data-card">
-            <h3>Comparativo entre cultos</h3>
-            <div id="service-comparison" class="data-status"></div>
-          </div>
-          <div class="data-card">
-            <h3>Alertas de gestão</h3>
-            <div id="attendance-alerts" class="data-status"></div>
+
+          <div class="card-saas">
+             <div class="card-header"><h3 class="card-title">Comparativo</h3></div>
+             <div class="card-content">
+                <div id="weekday-frequency"></div>
+             </div>
           </div>
         </div>
-      </section>
-    </section>
+      </div>
+
+    </div>
   </section>
 `

@@ -10,8 +10,8 @@ export const applyPermissions = (user: User) => {
   const isAdmin = user.role === 'admin'
   const isManager = user.role === 'manager'
 
-  toggleElement('.menu__item[data-view="commons"]', isAdmin)
-  toggleElement('.menu__item[data-view="users"]', isAdmin || isManager)
+  toggleElement('.nav-item[data-view="commons"]', isAdmin)
+  toggleElement('.nav-item[data-view="users"]', isAdmin || isManager)
 
   toggleElement('.view[data-view="commons"]', isAdmin)
   toggleElement('.view[data-view="users"]', isAdmin || isManager)
@@ -38,8 +38,8 @@ export const applyPermissions = (user: User) => {
 }
 
 export const resetPermissions = () => {
-  toggleElement('.menu__item[data-view="commons"]', true)
-  toggleElement('.menu__item[data-view="users"]', true)
+  toggleElement('.nav-item[data-view="commons"]', true)
+  toggleElement('.nav-item[data-view="users"]', true)
   toggleElement('.view[data-view="commons"]', true)
   toggleElement('.view[data-view="users"]', true)
 

@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { createRoot } from 'react-dom/client'
 import { api, type Common } from './api'
 import { getCurrentUser } from './session'
 
@@ -191,16 +190,7 @@ function Reports() {
       </div>
 
       {error && (
-        <div
-          style={{
-            padding: '1rem',
-            marginBottom: '1.5rem',
-            backgroundColor: 'rgba(239, 68, 68, 0.15)',
-            border: '1px solid rgba(239, 68, 68, 0.5)',
-            borderRadius: '12px',
-            color: '#ef4444',
-          }}
-        >
+        <div className="report-error-banner">
           {error}
         </div>
       )}
@@ -285,7 +275,7 @@ function Reports() {
             </select>
           </label>
 
-          <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+          <div className="report-actions-row">
             <button
               className="primary"
               onClick={gerarRelatorio}
@@ -298,7 +288,7 @@ function Reports() {
       </div>
 
       {summary && (
-        <div className="kpi-grid" style={{ marginTop: '2rem' }}>
+        <div className="kpi-grid report-kpis-section">
           <article className="kpi-card">
             <span className="kpi-label">Total de Músicos</span>
             <strong className="kpi-value">{summary.total_musicos}</strong>
@@ -327,20 +317,14 @@ function Reports() {
       )}
 
       {!summary && !loading && !error && (
-        <div
-          style={{
-            padding: '3rem',
-            textAlign: 'center',
-            color: 'rgba(255, 255, 255, 0.6)',
-          }}
-        >
+        <div className="report-empty">
           <p>Selecione os filtros e clique em "Gerar Relatório" para visualizar os dados.</p>
         </div>
       )}
 
       {summary && (
-        <div style={{ marginTop: '2rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+        <div className="report-stack">
+          <div className="report-actions-row">
             <button
               className="primary"
               onClick={() => {
@@ -356,7 +340,7 @@ function Reports() {
           {ranking && ranking.ranking_faltas.length > 0 && (
             <div className="form-card">
               <h3>Ranking de Faltas (Top 10)</h3>
-              <div style={{ overflowX: 'auto' }}>
+              <div className="report-scroll">
                 <table className="data-table">
                   <thead>
                     <tr>
@@ -373,7 +357,7 @@ function Reports() {
                         <td>{index + 1}º</td>
                         <td>{item.musician_name}</td>
                         <td>{item.presencas}</td>
-                        <td style={{ color: item.faltas > 0 ? '#ef4444' : 'inherit' }}>
+                        <td className={item.faltas > 0 ? 'text-error' : ''}>
                           {item.faltas}
                         </td>
                         <td>{item.percentual_presenca.toFixed(2)}%</td>
@@ -388,7 +372,7 @@ function Reports() {
           {ranking && ranking.ranking_presencas.length > 0 && (
             <div className="form-card">
               <h3>Ranking de Presenças (Top 10)</h3>
-              <div style={{ overflowX: 'auto' }}>
+              <div className="report-scroll">
                 <table className="data-table">
                   <thead>
                     <tr>
@@ -404,7 +388,7 @@ function Reports() {
                       <tr key={item.musician_id}>
                         <td>{index + 1}º</td>
                         <td>{item.musician_name}</td>
-                        <td style={{ color: '#3dca7b' }}>{item.presencas}</td>
+                        <td className="text-success">{item.presencas}</td>
                         <td>{item.faltas}</td>
                         <td>{item.percentual_presenca.toFixed(2)}%</td>
                       </tr>
@@ -418,7 +402,7 @@ function Reports() {
           {(!ranking || (ranking.ranking_faltas.length === 0 && ranking.ranking_presencas.length === 0)) && (
             <div className="form-card">
               <h3>Ranking de Músicos</h3>
-              <p style={{ padding: '1rem', textAlign: 'center', color: 'rgba(255, 255, 255, 0.6)' }}>
+              <p className="report-empty">
                 Nenhum dado de ranking disponível para o período selecionado.
               </p>
             </div>
@@ -427,7 +411,7 @@ function Reports() {
           {history.length > 0 && (
             <div className="form-card">
               <h3>Histórico por Data</h3>
-              <div style={{ overflowX: 'auto' }}>
+              <div className="report-scroll">
                 <table className="data-table">
                   <thead>
                     <tr>
@@ -455,7 +439,7 @@ function Reports() {
           {history.length === 0 && summary && (
             <div className="form-card">
               <h3>Histórico por Data</h3>
-              <p style={{ padding: '1rem', textAlign: 'center', color: 'rgba(255, 255, 255, 0.6)' }}>
+              <p className="report-empty">
                 Nenhum histórico disponível para o período selecionado.
               </p>
             </div>
@@ -464,21 +448,6 @@ function Reports() {
       )}
     </>
   )
-}
-
-let reactRoot: ReturnType<typeof createRoot> | null = null
-
-export function loadReports() {
-  const container = document.getElementById('reports-react-root')
-  if (!container) return
-
-  if (reactRoot) {
-    reactRoot.unmount()
-    reactRoot = null
-  }
-
-  reactRoot = createRoot(container)
-  reactRoot.render(<Reports />)
 }
 
 export default Reports
