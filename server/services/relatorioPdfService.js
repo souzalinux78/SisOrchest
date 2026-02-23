@@ -198,6 +198,39 @@ const drawHistoryTable = (doc, items) => {
   drawGenericTable(doc, headers, widths, rows)
 }
 
+const drawNamesInTwoColumns = (doc, names) => {
+  const availableWidth = PAGE.RIGHT - PAGE.LEFT
+  const columnGap = 16
+  const columnWidth = (availableWidth - columnGap) / 2
+  const rowHeight = 14
+
+  doc
+    .fontSize(8.5)
+    .font('Helvetica')
+    .fillColor(COLORS.ACCENT)
+
+  for (let i = 0; i < names.length; i += 2) {
+    ensurePageSpace(doc, rowHeight + 2)
+    const rowY = doc.y
+
+    const leftName = `${i + 1}. ${names[i]}`
+    doc.text(leftName, PAGE.LEFT, rowY, {
+      width: columnWidth,
+      ellipsis: true,
+    })
+
+    if (names[i + 1]) {
+      const rightName = `${i + 2}. ${names[i + 1]}`
+      doc.text(rightName, PAGE.LEFT + columnWidth + columnGap, rowY, {
+        width: columnWidth,
+        ellipsis: true,
+      })
+    }
+
+    doc.y = rowY + rowHeight
+  }
+}
+
 const drawPresentesPorData = (doc, items) => {
   items.forEach((item) => {
     ensurePageSpace(doc, 34)
@@ -210,16 +243,18 @@ const drawPresentesPorData = (doc, items) => {
 
     doc.moveDown(0.2)
 
-    const names = Array.isArray(item.musicians) && item.musicians.length > 0
-      ? item.musicians.join(', ')
-      : '--'
-
-    ensurePageSpace(doc, 28)
-    doc
-      .fontSize(9)
-      .font('Helvetica')
-      .fillColor(COLORS.ACCENT)
-      .text(names, PAGE.LEFT, doc.y, { width: 495, align: 'left' })
+    const names = Array.isArray(item.musicians) ? item.musicians : []
+    if (names.length === 0) {
+      ensurePageSpace(doc, 16)
+      doc
+        .fontSize(9)
+        .font('Helvetica')
+        .fillColor(COLORS.ACCENT)
+        .text('--', PAGE.LEFT, doc.y, { width: 495, align: 'left' })
+      doc.moveDown(0.3)
+    } else {
+      drawNamesInTwoColumns(doc, names)
+    }
 
     doc.moveDown(0.4)
     ensurePageSpace(doc, 8)
